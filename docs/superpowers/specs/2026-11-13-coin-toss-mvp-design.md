@@ -1,9 +1,9 @@
 # コイントス MVP 設計書（第1マイルストーン）
 
 - 日付: 2026-11-13
-- 状態: レビュー待ち
+- 状態: 設計（1周目のレビューの指摘は、§1 の決めたことと該当の節に畳んだ）
 - **対象**: `crates/padparadscha-common`、`crates/padparadscha-table`、`classics/crates/padparadscha-classics-core`、`classics/desktop`、`classics/headless`、`classics/mobile`、`classics/web`
-- **参照**: リポジトリ直下の `BOOTSTRAP.md`、`corundum-framework-platform`（`dirs`、OS ごとの仕組み）、`corundum-framework-gui`（`Shell` / `ShellApp`、システムフォント、Lucide アイコン、`i18n`）、sapphire-agent の ACP サーバー（`GET /acp`、`POST /rpc`）、sapphire-agent の MCP over ACP（`"type": "acp"`、`acp__<serverName>__<tool>`）
+- **参照**: リポジトリ直下の `BOOTSTRAP.md`、`corundum-framework-platform`（`dirs`、OS ごとの仕組み）、`corundum-framework-gui`（`look` / `theme` / `i18n` / Lucide アイコン。egui の部品。eframe は足さない）、`sapphire-agent-gui`（bevy の plugin として bevy_egui を足す、このリポジトリのアプリの型）、sapphire-agent の ACP サーバー（`GET /acp`、`POST /rpc`）、sapphire-agent の MCP over ACP（`"type": "acp"`、`acp__<serverName>__<tool>`）
 - **この仕様が書くのは第1マイルストーンだけ。**クラシックス本体とサンドボックスは、それぞれ別の仕様で書く。
 
 ## 1. 目的とスコープ
@@ -14,14 +14,16 @@
 
 「いっしょに遊べている」感じが、この形で出るかどうか。数値の出来不出来ではなく、**フミトがどう感じたかが基準**になる（§11）。1人のユーザーと1人の AI の二人プレイを目標にする（`BOOTSTRAP.md` の前提どおり）。
 
-### 決めたこと（2026-11-13、フミト）
+### 決めたこと（フミト）
 
 | 決定 | 内容 |
 |---|---|
-| クレート配置 **A** | コイントスは padparadscha-table **側のエンジン能力**として実装する。classics-core はそれをコレクションの1項目として名前を出すだけ |
-| 物理 | **rapier3d**。重いとは分かっている。今はこれでいく |
-| wasm | **第1スライスから**入れる。後回しにしない |
-| セッション | **ACP セッションは1つだけ共有**。チャットとゲームは同じ部屋 |
+| クレート配置 **A**（2026-11-13） | コイントスは padparadscha-table **側のエンジン能力**として実装する。classics-core はそれをコレクションの1項目として名前を出すだけ |
+| 物理 **rapier3d**（2026-11-13） | 重いとは分かっている。今はこれでいく |
+| wasm **第1スライスから**（2026-11-13） | 後回しにしない |
+| セッション **1つだけ共有**（2026-11-13） | ACP セッションは1つ。チャットとゲームは同じ部屋 |
+| **bevy が軸**（レビュー1周目でフミト承認） | エンジンもアプリの窓も bevy。egui は**部品**（チャット欄・タイトル・設定）で、bevy の窓の中に bevy_egui で乗る。eframe と「egui の枠」は architecture ではない。bevy はこのマイルストーンに入れる（後回しにしない） |
+| **コマンドの順番**（レビュー1周目でフミト承認） | このマイルストーンは単純な FIFO の列。厳格な交互のターンは後のゲーム側の課題として入れる（§5.1） |
 
 ### 用語（この仕様と、後の実装計画を読むための約束）
 
@@ -30,14 +32,18 @@
 | クライアント | desktop、mobile、web の窓を出す側 |
 | ゲームサーバー | padparadscha 側のサーバー。headless ではそのもの、desktop と mobile ではクライアントの中にいる |
 | エージェント | sapphire-agent。**ACP のサーバー**で、ゲームサーバーの接続する相手 |
-| 会話 | 共有された1つの ACP セッションの流れ（発話、返事、ゲーム由来の行） |
-| push feed | ゲームサーバーがクライアントに流すもの（会話の中身とコマンドログの追加） |
+| 会話 | 共有された1つの ACP セッションの流れ（フミトの発話、エージェントの返事、ゲーム由来の行） |
+| コマンド | peer が打つもの（`toss` / `log`）。受け取られると seq つきの行になる |
+| `GameEvent` | コマンドから出た状態変化の行 |
+| ログ | コマンドと `GameEvent` を `seq` つきで追記していくだけの1つの列。**ゲームの状態の正（ただしい形）**（§7.3） |
+| feed | ゲームサーバーがクライアントに流すもの（ログの追加と、会話の中身） |
 
 ### スコープ外（意図的に入れないもの）
 
 - 得点板、順位、戦績。コイントスはおまけで、ゲームを1つ増やすものではない。
 - 他のテーブルトップゲーム（トランプ、TRPG 系のオリジナル）。クラシックス本体の仕様で書く。
 - サイコロ。コイントスと同じ読み出しの仕組みに後で乗せられる形にだけしておく。今回は実装しない。
+- 厳格な交互のターン、手番、待った。今回は FIFO の列だけ（§5.1）。
 - 設定の項目を増やすこと。言語、テーマ、サーバーの URL は corundum-framework の設定がすでに持つ。
 - 複数ユーザー、認証と権限の作り込み、ボイス。今は1人でもう1人は AI。
 - アニメーション、音、エフェクトの作り込み。動くことを確かめる分だけ動かす。
@@ -48,41 +54,43 @@
 
 | クレート | 役割 | 依存するもの |
 |---|---|---|
-| `padparadscha-common` | アプリの土台。corundum-framework の crate の上に乗って、ACP セッションを結び、タイトルと設定とチャットパネルを表示し、MCP ツールの登録をする。クラシックスとサンドボックスで共用する「全体のながれ」 | corundum-framework-platform、corundum-framework-gui、agent-client-protocol、rmcp、tokio |
-| `padparadscha-table` | テーブルゲームエンジン。テーブル、ターン制セッション、剛体物体と rapier3d、状態変化を会話の流れ（システム種のメッセージ）に変える層。**コイントスはここに置いたエンジン能力** | padparadscha-common、rapier3d、serde、tokio |
+| `padparadscha-common` | アプリの土台。bevy の plugin として、ACP セッションを結び、タイトルと設定とチャットパネルを描き、MCP ツールの登録をする。クラシックスとサンドボックスで共用する「全体のながれ」 | bevy（default-features = false）、bevy_egui、corundum-framework-gui（default-features = false。eframe を足さない）、corundum-framework-platform、agent-client-protocol、rmcp、tokio |
+| `padparadscha-table` | テーブルゲームエンジン。bevy の plugin として動く：テーブル、コマンド列、剛体物体と rapier3d、状態変化を `GameEvent` にし、それを会話の流れに変える層。**コイントスはここに置いたエンジン能力** | padparadscha-common、rapier3d、serde、tokio |
 | `padparadscha-classics-core` | アソビ大全的なコレクションを host する。コイントスを「おまけ」の印で1項目として並べるだけを持つ | padparadscha-table |
-| `classics/desktop` | 窓つきクライアント。ゲームサーバーを同じプロセスの中の別スレッドとして起こす | padparadscha-classics-core、padparadscha-common、eframe |
-| `classics/headless` | 窓なしのゲームサーバーバイナリそのもの。desktop と同じコマンドと API を持つ | padparadscha-classics-core |
-| `classics/mobile` | iOS / Android のクライアント。同じながれを、窓だけ変えて使う | padparadscha-classics-core、padparadscha-common、eframe |
-| `classics/web` | wasm クライアント。**サーバーは同梱しない**。同一オリジンのサーバーの API だけ使う | padparadscha-classics-core、padparadscha-common、wasm-bindgen / web-sys |
+| `classics/desktop` | bevy の窓を出すクライアント。ゲームサーバーを同じプロセスの中の別スレッドとして起こす | padparadscha-classics-core、padparadscha-common、bevy（`bevy_winit` などの窓と描画の plugin） |
+| `classics/headless` | 窓なしのゲームサーバーバイナリそのもの。desktop と同じコマンドと API を持つ | padparadscha-classics-core（窓と描画の plugin なし） |
+| `classics/mobile` | iOS / Android のクライアント。同じながれを、窓だけ変えて使う | padparadscha-classics-core、padparadscha-common、bevy |
+| `classics/web` | wasm クライアント。**サーバーは同梱しない**。同一オリジンのサーバーの API だけ使う | padparadscha-classics-core、padparadscha-common、bevy（web の backend）、wasm-bindgen / web-sys |
 
 - 配置は asteria と同じ：ライブラリは `crates/` と `<成果物>/crates/`、バイナリはリポジトリ直下の短い名前のディレクトリ（パッケージ名は `padparadscha-` 付き）。
 - classics-core は padparadscha-table にだけ依存する。padparadscha-voxel はこのマイルストーンでは使わない。
-- `padparadscha-common` は eframe に依存しない（egui だけ）。CI でこのクレートを `wasm32-unknown-unknown` 向けに `cargo check` する。
-- classics/web が padparadscha-table から読むのは、物体の描画と静止姿勢の読み出しだけ。物理とセッションはサーバー側で動く。
+- アプリのクレートは eframe に依存しない。egui が必要なのはチャット欄・タイトル・設定の部品だけ。corundum-framework-gui は `eframe` feature を落として足す（sapphire-agent-gui がそうしている）。
+- classics/web が padparadscha-table から読むのは、物体とテーブルの描画と、静止姿勢の読み出しだけ。物理のシミュレーションは各 peer で動く（§5.2）。
 
 ### 2.2 依存の向き
 
-- `corundum-framework-platform` と `corundum-framework-gui` を `padparadscha-common` が使う。
+- `corundum-framework-platform`（dirs、locale）と `corundum-framework-gui`（look、theme、i18n、icons）を `padparadscha-common` が使う。
 - `padparadscha-table` は `padparadscha-common` と rapier3d に依存する。
 - `padparadscha-classics-core` は `padparadscha-table` にだけ依存する。
 - 4つのクライアントは classics-core と padparadscha-common に依存する。クライアント同士は依存しない。
+- **アプリは bevy の plugin を足した app、その plugin として common と table を足す**（sapphire-agent-gui の `AgentGuiPlugin` と同じ型）。窓と OS の仕組みのことは app の側にだけ残す。
+- **egui は1つだけ**。bevy_egui が re-export する egui と同じ major を全クレートで使う（2つの egui は1つのアプリを共有できない）。
 - OS 固有の処理は `#[cfg]` のモジュールに分ける。ディレクトリは `corundum_framework::dirs` を通してだけ取る。
 
 ### 2.3 主要技術
 
 | 用途 | 採用するもの |
 |---|---|
-| GUI の枠 | corundum-framework-gui（`Shell<D>` / `ShellApp<D>`、`i18n`、Lucide アイコン、テーマ） |
+| 窓と実行の軸 | **bevy 0.20**（`default-features = false` で足し、app が窓と backend を足す）。headless は窓と描画の plugin を足さないだけ |
+| egui の部品（チャット欄・タイトル・設定） | bevy_egui（sapphire-turtle の fork、egui 0.37 の branch）＋ egui_extras（`svg`。Lucide アイコンをテクスチャにする） |
+| look と翻訳 | corundum-framework-gui（`look`、`theme`、`i18n` の `Resources` / `register` / `install`、`check`）。クレートごとに `.ftl` を embed して `register` する |
 | OS / スマートフォンのディレクトリと仕組み | corundum-framework-platform（`dirs`、`locale`） |
 | エージェントとの会話を結ぶ | ACP（`agent-client-protocol`、WebSocket） |
 | エージェントにゲームを触らせる | MCP over ACP（`"type": "acp"`） |
-| クライアント ↔ ゲームサーバー | HTTP 上の JSON-RPC 2.0 と WebSocket の push feed |
-| 実行時 | tokio |
+| クライアント ↔ ゲームサーバー | HTTP 上の JSON-RPC 2.0 と WebSocket の feed |
+| 実行時 | tokio（bevy の予定表とは別に、アプリのクライアント用の実行時を1つ持つ。sapphire-agent-gui と同じ型） |
 | 物理 | rapier3d（剛体、`f64`） |
-| テーブルと物体の描画 | egui のペイント（epaint）。このマイルストーンでは bevy を入れない |
-| 読み出しの固定小数点 | `fixed` crate（§7.1） |
-| 翻訳 | Fluent。クレートごとに `.ftl` を embed して `register` する |
+| 乱数と読み出し | `rand_xoshiro`（整数だけ。§7.1）と `fixed` crate |
 
 ## 3. 1つのセッション（チャットとゲームは同じ部屋）
 
@@ -91,58 +99,65 @@
 - エージェントの返事は、ゲームと並べてチャット欄に出る。
 - ゲームサーバーは MCP サーバーでもあり、ACP 接続の上に自分のツールを出す（§4）。エージェントはそれを使ってゲームに干渉する。ユーザーはクライアントから干渉する。**両者は peer**。
 
-### 3.1 会話にのせるもの
+### 3.1 ゲーム由来の行は、正はログ、描画は見る側
 
-| 種別 | 会話（ACP セッション） | クライアントへの push feed |
-|---|---|---|
-| フミトの発話 | テキスト | テキスト |
-| エージェントの返事 | テキスト | テキスト |
-| ゲーム由来の状態変化 | 描画済みのテキスト1本 | `id` と `args` と `seq` の構造化された形 |
+| もの | 正（ただしい形） | 会話（ACP セッション）にのるもの | クライアントへの feed |
+|---|---|---|---|
+| フミトの発話 | テキスト | テキスト | テキスト |
+| エージェントの返事 | テキスト | テキスト | テキスト |
+| ゲーム由来の状態変化 | **`seq` つきのログの1行**（`id` と `args`） | 構造化されたまま（§3.2） | 構造化されたまま |
 
-- ゲーム由来の項目の**正（ただしい形）は構造化された形**。会話にのせるテキストはその時の言語で描画したものなので、後から言語を切り替えても会話の中の古い1行は変わらない。構造化された形はクライアントの側で今の言語に描き直される。
-- 1つのセッションを2つのクライアントが別の言語で読むことはある（desktop は日本語、ブラウザは英語）。だから feed は構造化された形を運び、描画は見る側の言語でやる。
+- 後から言語を切り替えても、ログの中の古い1行は変わらない。変わるものが見る側の描画だけなのは、これが理由。
+
+### 3.2 会話の中の1行の言語
+
+- **ゲームサーバーが運ぶのは、構造化された1行だけ。**テキストに直すのは読む側で、①セッション（エージェント）側はセッションの言語設定で、②クライアントは見る側の言語で（`tr!`）描く。1つのセッションを2つのクライアントが別の言語で読むことはある（desktop は日本語、ブラウザは英語）。
+- コマンドログ由来のイベント（§7.3）も §6.5 の `GameEvent` も、ACP の `session/update` に乗るときの文章は①の側、つまり**セッション（エージェント）の言語設定**に従う。②の側（窓のチャット欄）は見る側の言語で描く。この2つは別のものとして区別する。
 
 ## 4. padparadscha-common（全体のながれ）
+
+bevy の plugin 1つとして出す。アプリの app が bevy の `DefaultPlugins` と自分の窓を足し、その上この plugin と table の plugin を足す（sapphire-agent-gui と同じ型）。
 
 ### 4.1 起動とサーバーの接続
 
 1. `corundum_framework::dirs` からデータとキャッシュと設定のディレクトリを取る。
-2. アプリの設定を読む：`[acp].url`（エージェントの URL。既定はローカル）、`[server].mode`（`local` / `remote`）。言語とテーマは corundum の設定がすでに持つので、ここは持たない。
-3. `local` なら同じプロセスの中でゲームサーバーを起動する（desktop、mobile）。`remote` なら URL に結ぶ。headless はサーバーそのものなので `[server].mode` を持たない。
+2. アプリの設定を読む：`[acp].url`（エージェントの URL。既定はローカル）、`[server].mode`（`local` / `remote`）。言語とテーマは corundum の `look` がすでに持つので、ここは持たない。
+3. `local` なら同じプロセスの中に table の plugin を足す（desktop、mobile）。`remote` なら URL に結ぶ。headless は窓と描画の plugin を足さないだけで、plugin 群そのものは同じ。サーバーそのものなので `[server].mode` を持たない。
 4. `[acp].url` に WebSocket で結ぶ。API バージョンのハンドシェイクが一致しなければ、接続を拒否してわかりやすいメッセージを出す。
 
 ### 4.2 チャットパネル
 
-- corundum-framework-gui の `Shell` に乗る1画面として出す。狭い幅（スマートフォン、ブラウザの隅）でも使える。
+- bevy_egui が窓の中に乗せる egui で描く1画面。egui の枠（corundum-framework-gui の `Shell` / `ShellApp`）は使わない。狭い幅（スマートフォン、ブラウザの隅）でも使える。
 - 上から順に、発話、返事、システム種（ゲーム由来の1行）を並べる。入力は1つ。発話は `chat.send` としてゲームサーバーに届き、ACP のユーザーメッセージになる。
-- チャットパネルは会話の流れを描くだけで、ゲームの状態を自分で持たない。
+- チャットパネルは会話とログの流れを描くだけで、ゲームの状態を自分で持たない。
 
 ### 4.3 MCP サーバーとしての登録
 
 - ゲームサーバーは MCP サーバーでもあり、ACP 接続の上にツールを出す。sapphire-agent の側でツール名は `acp__<serverName>__<tool>` になる。このマイルストーンで出す MCP サーバー名は `table`。
-- ローカルでもリモートでも、クライアント ↔ ゲームサーバーは JSON-RPC 2.0（`POST /rpc`）と push feed（`GET /ws`）で、**経路が変わるだけ**（ローカルは `127.0.0.1` のループバック）。sapphire apps と違って IPC は使わない。
+- ローカルでもリモートでも、クライアント ↔ ゲームサーバーは JSON-RPC 2.0（`POST /rpc`）と feed（`GET /ws`）で、**経路が変わるだけ**（ローカルは `127.0.0.1` のループバック）。sapphire apps と違って IPC は使わない。
 
 ## 5. padparadscha-table（テーブルゲームエンジン）
 
-### 5.1 テーブルとターン制セッション
+### 5.1 テーブルとコマンド列
 
 - `Table`：テーブル（寸法、縁、壁）。物体は上に置かれたものだけ。
-- `Session`：**ターン制**。1ターンは1コマンド。誰が打ったコマンドか（`Actor`：ユーザー / エージェント）を常に持つ。
-- セッションはセッション ID、**種（seed、§7.1）**、コマンドログ、物体の一覧を持つ。
+- `Session`：セッション ID、**種（seed、§7.1）**、**コマンド列**、物体の一覧を持つ。
+- **このマイルストーンは単純な FIFO の列**。受け取られたコマンドは順番に入列し、その結果が会話に1行として出る。誰が打ったコマンドか（`Actor`：ユーザー / エージェント）を各行が持つ。
+- **厳格な交互のターン（手番、待ち手、誰の番か）は入れない**。後のゲームの課題として残すもの（§1 のスコープ外）。
 
 ### 5.2 剛体物体と物理
 
 - 剛体物体は `Body` 1つとして扱う。ゲームごとに物体の形を作り直さない。
 - コイントスも、後で来るサイコロも「テーブル上で跳ねる物体」は同じもの。だからエンジンは `simulate` 1本だけを持つ。ゲームごとに物理を書き直さない。
 - 物理の型は rapier3d の `Vector3<f64>` そのもの。シミュレーション側に固定小数点の型は入れない。固定小数点を出すのは §7.1 の読み出しだけ。
-- シミュレーションは**ゲームサーバーの側だけ**で動く。クライアントは同じコマンドと種から自分で動かす（§7）。
+- **シミュレーションは各 peer のプロセスで動く**。ゲームサーバーが**種と結果の権威**（正しい seq と結果の判定はサーバーが決める）。クライアントは同じコマンドログと種から自分の側で同じものを動かし、同じ場面を作る（§7.3）。
 
-### 5.3 状態変化 → 会話の流れ
+### 5.3 状態変化 → `GameEvent` → 会話の流れ
 
 - 状態変化は `GameEvent { id, args, seq }` になる。`id` は Fluent のメッセージ ID、`args` は `who`（誰が振ったか）と結果。
 - `GameEvent` は2つの場所に行く：
-  1. **会話**：今の言語で描画したテキストとしてセッションに1行（§3.1）
-  2. **push feed**：構造化されたままクライアントに（描画は見る側の言語）
+  1. **会話**：§3.2 の言語で描画したテキストとして1行
+  2. **feed**：構造化されたままクライアントに（見る側の言語に描き直される）
 - この変換の層が padparadscha-table にある。ゲームごとに書き直すものではない。
 
 ## 6. コイントス（エンジン能力、おまけ）
@@ -166,40 +181,49 @@ rapier3d が 120Hz の固定ステップで動かし、静止したらキーフ�
 | 角 | 結果 |
 |---|---|
 | 45° 未満 | その面。表なら `heads`、裏なら `tails` |
-| 45° 以上（縁の上で立っている） | 判定できないので**自動で振り直す**（最大2回）。3回目でも決まらなければ「立っている」をイベントにして出す |
+| 45° 以上（縁の上で立っている） | 判定できないので**自動で振り直す**。3回目でも決まらなければ「立っている」をイベントにして出す |
 
-### 6.5 イベント
+### 6.5 振り直しの番号
 
-`coin-toss.outcome`、`args = { who, outcome }` →「フミトがコイントスを振った。表が出た」。
+**振り直しは新しい行を作らない。**コマンド1つに対してログの1行だけが残る。`args` は `{ who, outcome, attempt }` の `attempt`（0 から始める振り直しの番号、0 ≤ attempt ≤ 2）にそれを持つ。3回目のあとにも決まらなければ `outcome = edge`。
 
-### 6.6 classics-core 側の1行
+### 6.6 イベント
+
+`coin-toss.outcome`、`args = { who, outcome, attempt }` →「フミトがコイントスを振った。表が出た」。
+
+### 6.7 classics-core 側の1行
 
 classics-core は「コイントス」を `kind = bonus`（おまけ）の印で一覧に並べるだけを持つ。物理も判定も持たない。
 
 ## 7. 同期：決定論的なシミュレーションと入力コマンド
 
-### 7.1 種
+### 7.1 種と乱数
 
 - `Seed(u64)`：**セッションにつき1つ**。セッションを作るときに1回だけ作られ、join のときにクライアントに届く（§7.3）。
-- 1コマンド分の乱数は `(セッションの種, コマンドの番号)` から引いた**符号なし整数の列**から作る。整数の列から範囲を決めて `f64` に上げる。float の乱数生成器を組み込まないのは、`f64` の演算がターゲットで変わっても、同じ列から同じ値が読めるようにするため。
-- §6.4 の角の比べ方は `fixed` crate の固定小数点（Q16.16）で張った内積だけでやる。`cos` と `atan2` を判定に入れない。判定がターゲットの浮動小数点の演算に左右されないようにするため。
+- 1コマンド分の乱数は `(セッションの種, コマンドの seq)` から引いた**符号なしの整数の列だけ**から作る。名を張るのは **`rand_xoshiro` の `Xoshiro256PlusPlus`**（状態は u64 × 4、`(種, seq)` を SplitMix64 で起こす）。`f64` の演算を乱数に入れられないから、float の乱数生成器は組み込まない。
+- **整数から固定小数点への写し方**：`u64` の上の32ビットをそのまま `fixed` の `U0F32`（整数部0、小数部32）の小数部に入れる。`[0, 1)` の固定小数点が、切り捨てと丸めなしでそのまま出る。範囲 `[lo, hi)` は `lo + (hi - lo) * x` の固定小数点の掛け算だけで決める。
+- §6.4 の角の比べ方は `I16F16` の内積だけでやる（`cos` は比較する2つの向きを同じ固定小数点に落としてから内積を取る）。`cos` と `atan2` を判定に入れないのは、判定がターゲットの `f64` の演算に左右されないようにするため。
+- 物体に渡す量（初速、角速度、初期の向き）は、その固定小数点から決まる。
 
 ### 7.2 コマンド（同期の中身）
 
 ゲームの状態の同期は**決定論的なシミュレーションと入力コマンド**。全フレームのストリームではない。
 
-| コマンド | 中身 | 返すもの |
+| コマンド | 中身 | 結果 |
 |---|---|---|
-| `toss` | 誰が振ったか | §6 の結果 |
+| `toss` | 誰が振ったか | §6 の結果が `GameEvent` としてログに1行 |
 | `log` | フミトが打ち込んだメモ（物体の名前と、その理由） | 会話に1行として乗る。物理は動かない |
 
 - 静止の決め手は「物体が静止した」ことの1個だけ。そのキーフレーム（位置と向き）がコマンドの結果として運ばれる。
-- フミトはクライアントの「振る」ボタンから、エージェントは `acp__table__toss_coin` から、同じ `toss` を打つ。順番はターンが持つ。
+- フミトはクライアントの「振る」ボタンから、エージェントは `acp__table__toss_coin` から、同じ `toss` を打つ。順番は §5.1 の列が持つ。
 
-### 7.3 コマンドログ
+### 7.3 ログ：スナップショットと feed は途切れなく続く
 
-- コマンドログは追記のみで、`seq` がつく。クライアントは join のときにセッション ID と種とログを受け取り、**自分の側で同じシミュレーションを動かして同じ場面を作る**。
-- 再起動しても、ログから作り直せる。
+- ログは**追記のみで、`seq` がつく**。
+- 入ってくるクライアントは join のときに**ある seq までのスナップショット**を受け取る。
+- feed は**その seq の続き**から流れる。**スナップショットと feed の間に穴がないこと（途切れのない再現）が契約**で、§12 のテストの対象（§9、§12）。
+- 結んだクライアントは自分の側で同じシミュレーションを動かし、同じ場面を作る（§5.2）。
+- **切れている間も列は消えない**：受け取れたら自分の seq を覚えている。再接続時に「この次がほしい」を出し、欠けている分だけを受け取る。
 
 ## 8. 4つのターゲットと同じ API
 
@@ -211,29 +235,33 @@ classics-core は「コイントス」を `kind = bonus`（おまけ）の印で
 | web（wasm） | **同梱しない** | 同一オリジンのサーバーの `POST /rpc` と `GET /ws` |
 
 - ローカルで起動したサーバーは、ブラウザがページを読み込んだのと同じオリジンを持つサーバーとして同じ API を出す。だからサイトの隅でこっそり遊ぶイースターエッグとして入れられる。
-- 同一オリジンなので、CORS も新しい認証の形も今回入れるものがない。Bearer トークンは `Authorization` で足りる。
 - 配布の形も asteria と同じ：コマンドは1本で、desktop と mobile はそのコマンドに窓を足したもの、headless は窓を出さない同じバイナリ。
 - wasm の `GET /ws` はブラウザの `WebSocket` を使う。
-- mobile（iOS）の窓は corundum-framework の対応を待つ。それまではデスクトップ向けに進められる形にする（§14）。
+- mobile（iOS）の窓は bevy の iOS の窓の経路（sapphire apps がすでに持っているもの）の上で動く。この4つの中一番後に回る（§14）。
 
 ## 9. API
 
 | ルート | 用途 |
 |---|---|
-| `POST /rpc` | JSON-RPC 2.0。`server.info`（ハンドシェイク：API バージョン）、`session.join`（セッション ID・種・コマンドログを返す）、`game.command`（`toss` / `log` を打つ）、`chat.send` |
-| `GET /ws` | push feed。会話の中身（発話、返事、`GameEvent` の構造化された形）とコマンドログの追加 |
+| `POST /rpc` | JSON-RPC 2.0。`server.info`（ハンドシェイク：API バージョン）、`session.join`（**スナップショット：セッション ID・種・seq までのログ**を返す）、`session.ticket`（§9.1）、`game.command`（`toss` / `log` を打つ）、`chat.send` |
+| `GET /ws?ticket=…` | feed。スナップショットの続きの seq から、ログの追加と会話の中身（発話、返事、`GameEvent` の構造化された形）を流す |
 
-- リクエストは必ず「誰のリクエストか」を持つ。`chat.send` の発話は ACP のユーザーメッセージになり、`game.command` は ACP のツール実行としても会話に現れる（§3）。
-- API バージョンが一致しなければ 422 とわかりやすいメッセージで答える。
+### 9.1 `GET /ws` の認証（ブラウザは `Authorization` を持てない）
+
+- `Authorization` を載せられないのは、ブラウザの `WebSocket` のハンドシェイクだけ（fetch と違ってヘッダを選べない）。だから **`GET /ws` は `?ticket=` で結ぶ**。ローカルでも mobile でも同じ形を使う（経路だけが変わる、§4.3）。
+- チケットは `POST /rpc` の `session.ticket` で得る**使い捨ての、短命なもの**（既定 30秒、1回だけ使える）。`POST /rpc` の側は自分のヘッダを載せられる（ローカル、mobile、ブラウザのどれでも `Authorization: Bearer <token>`。ブラウザはページからトークンを取る）ので、**その認証を1回だけ WebSocket のハンドシェイクに手渡す**だけで足りる。
+- チケットはセッション ID に紐付く。未知、期限切れ、2回目の使用は、ハンドシェイクで 401。再接続は新しいチケットで打ち直す（§10）。
 
 ## 10. エラー処理
 
 | 事象 | 対応 |
 |---|---|
 | エージェントに結べない、途中で切れた | 画面は「エージェントなし」で動き続ける。ゲームはそのまま遊べる。再接続はするが、その間も入力は受け取る |
+| feed とスナップショットの間に穴が出た | §7.3 の契約。クライアントは持っている次の seq を出して、欠けている分だけを受け取る |
+| チケットが未知・期限切れ・2回目の使用 | ハンドシェイクで 401。画面は新しいチケットを取り直して再接続する |
 | API バージョンが一致しない | わかりやすいメッセージを出して接続を拒否する |
-| 3回振っても縁の上で立っている | 「立っている」をイベントにして出す。同じコマンドをもう1回打つまで先へ進まない |
-| まだ走っているシミュレーションの途中で次のコマンドが来た | コマンドは列に入って順番を待つ。ターンが順番を持つ（§5.1） |
+| 3回振っても縁の上で立っている | `outcome = edge` をイベントにして出す（§6.5）。もう1回振るまで先へ進まない |
+| まだ走っているシミュレーションの途中に次のコマンドが来た | コマンドは列に入って順番を待つ（§5.1） |
 | wasm が同じオリジンのサーバーに結べない | 「サーバーが見つからない」を1行出す。リクエストは打ち直せる |
 | 翻訳の id が見つからない | id をそのまま出し、miss は1回だけログに出す（corundum の `i18n` の挙動） |
 
@@ -250,33 +278,35 @@ classics-core は「コイントス」を `kind = bonus`（おまけ）の印で
 
 ## 12. テスト
 
-- **決定論**：同じ種と同じコマンドログから、x86_64、aarch64、`wasm32-unknown-unknown` で**同じ判定**が出ることを確かめる。物体の静止後の位置と向きは、`f64` の下位ビットまでではなく**読み出しの粒度（§6.4 の角の判定に足りる桁）で一致**を見、判定を変えない下位ビットの違いを不一致にしない。
-- **読み出し**：静止姿勢の一覧を作って、表、裏、立っているの3つが §6.4 どおりに分かれることを確かめる。縁の上で立ったものが必ず振り直しになること。
-- **会話**：`GameEvent` がセッションに1行として乗り、`args` から見る側の言語に描き直されること。
+- **決定論**：同じ種と同じログから、x86_64、aarch64、`wasm32-unknown-unknown` で**同じ判定**が出ることを確かめる。物体の静止後の位置と向きは、`f64` の下位ビットまでではなく**読み出しの粒度（§6.4 の角の判定に足りる桁）で一致**を見、判定を変えない下位ビットの違いを不一致にしない。§7.1 の整数の列がターゲットで同じことも別に確かめる。
+- **読み出し**：静止姿勢の一覧を作って、表、裏、立っているの3つが §6.4 どおりに分かれることを確かめる。縁の上で立ったものが必ず振り直しになり、§6.5 の `attempt` が入ること。
+- **途切れのない再現（§7.3 の契約）**：join のスナップショットの `seq` と feed の1つ目の `seq` が続くこと、途中で切れて再接続したクライアントが同じ行を一度ずつだけ受け取ることを確かめる。
+- **会話**：`GameEvent` がセッションに1行として乗り、セッションの言語で描画されること（§3.2）。`args` から見る側の言語に描き直されること。
+- **チケット**：`session.ticket` のチケットは1回だけ使えること、期限切れと2回目が 401 になること、新しいチケットで打ち直せること。
 - **通し**：headless を起こし、`session.join` → `game.command` → 会話に1行 → 別のクライアントが join して同じ行が出ることを確かめる。エージェントの側は sapphire-agent を起こす結合テストと、その代わりの小さな偽の ACP サーバーの両方を入れる。
-- **wasm**：CI で `wasm-bindgen-test` を使い、同一オリジンのサーバーに結んで同じ体験が通ることを確かめる。
+- **wasm**：CI で `wasm-bindgen-test` を使い、同一オリジンのサーバーに結んで同じ体験が通ることを確かめる。bevy と bevy_egui と rapier3d の wasm ビルドも CI のジョブで通す。
 - **CI**：Linux（x86_64 と arm64）、macOS、Windows でビルドとテストと `cargo deny`。wasm ビルドと `wasm-bindgen-test` は Linux のジョブだけ。
 
 ## 13. リスクと早期検証
 
-実装計画の早い段階で、次の点を試作で確かめる。
+実装計画の早い段階で、次の点を試作で確かめる。**この4つはすべて第1マイルストーンの技術のリスク**で、後で来るマイルストーンに持ち越すものではない。
 
 1. **rapier3d は決定論を誓わない**（`f64`、SIMD、aarch64 の FMA、wasm の浮動小数点）。§12 の判定粒度で一致がどこまで守れるかを確かめる。守れないなら、**サーバーが判定と静止姿勢のキーフレームを運び、クライアントは補間だけする**形に落とす（コマンドと種で同期する形は変えない）。このときは §7 を書き直す。
-2. **wasm で rapier3d がビルドが通り、1スレッドで実用的な速度で回ること。**
-3. **MCP over ACP が sapphire-agent 側で動くこと**（2026-11-10 の仕様が本番に入っていること）。
-4. **bevy を入れずに egui のペイントだけでテーブルと物体が描けること。**
+2. **bevy + bevy_egui が wasm32-unknown-unknown でビルドが通ること**。bevy の web の backend（`bevy_in_wgpu` と `wgpu-surf` 経由の WebGL2）、bevy_egui、`wgpu` の browser の backend。デスクトップ側は sapphire-agent-gui がすでに通っているので、そっちの型をなぞる。
+3. **同じ bevy の上テーブルと物体が描けること**（headless と web の両方を含む）。
+4. **MCP over ACP が sapphire-agent 側で動くこと**（2026-11-10 の仕様が本番に入っていること）。
 
 ## 14. 実装の順序（概要）
 
 詳しくは実装計画で決める。デスクトップ向けに進める間も、ほかのターゲットに戻れる形にする。
 
-1. ワークスペースの土台：ライセンス、CI、`cargo deny`、corundum の crate の組み込み。
-2. §13.1 と §13.2 の試作（決定論と wasm の物理）。
-3. `padparadscha-common`：dirs、`Shell`、言語とテーマ、設定、ACP セッション、チャットパネル、MCP の登録。
-4. `padparadscha-table`：`Table`、`Session`、`GameEvent`、rapier3d、`toss` と `log`。
+1. ワークスペースの土台：ライセンス、CI、`cargo deny`、corundum と bevy の crate の組み込み。
+2. §13.1 と §13.2 の試作（物理の決定論、bevy + bevy_egui + rapier3d の wasm）。
+3. `padparadscha-common`：dirs、bevy の plugin、look と言語とテーマ、ACP セッション、チャットパネル、MCP の登録。
+4. `padparadscha-table`：`Table`、コマンド列（§5.1 の FIFO）と `GameEvent` と `seq`、rapier3d、`toss` と `log`。
 5. コイントスの物体と読み出し、`coin-toss.outcome`。
 6. `padparadscha-classics-core`：おまけの1項目として並べる。
-7. `classics/headless`（サーバーバイナリ）と `classics/desktop`（内蔵して窓を出す）。
+7. `classics/headless`（サーバーバイナリ）と `classics/desktop`（bevy の窓を出し、ゲームサーバーを内蔵する）。
 8. `classics/web`：同一オリジンのサーバーに結んで同じ体験をやり直す。
 9. sapphire-agent を結んだ通しのテストと、§11 の確認。
-10. mobile（iOS）。corundum-framework の iOS の窓の対応を待つので、このマイルストーンでは一番後に回る。範囲から出るものではなく、OS 固有の処理は `#[cfg]` のモジュールに分けるという §2.2 の型を守る間も、デスクトップ向けに進める。
+10. mobile（iOS）。OS 固有の処理は `#[cfg]` のモジュールに分けるという §2.2 の型を守る間も、デスクトップ向けに進める。iOS の窓は bevy の iOS の窓の経路で動く。corundum-framework-platform がその上に OS の仕組み（dirs、locale、キーボード）を乗せる。このマイルストーンの4つの中で一番後に置くのは、そのため。
