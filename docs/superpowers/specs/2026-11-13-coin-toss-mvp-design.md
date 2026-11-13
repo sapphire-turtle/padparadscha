@@ -1,315 +1,315 @@
-# コイントス MVP 設計書（第1マイルストーン）
+# Coin Toss MVP Design (milestone 1)
 
-- 日付: 2026-11-13
-- 状態: 承認済み（レビュー1周目の指摘と、承認のときの5つの助言（advisories）は、§1 の決めたことと該当の節に畳んだ）
-- **対象**: `crates/padparadscha-common`、`crates/padparadscha-table`、`classics/crates/padparadscha-classics-core`、`classics/desktop`、`classics/headless`、`classics/mobile`、`classics/web`
-- **参照**: リポジトリ直下の `BOOTSTRAP.md`、`corundum-framework-platform`（`dirs`、OS ごとの仕組み）、`corundum-framework-gui`（`look` / `theme` / `i18n` / Lucide アイコン。egui の部品。eframe は足さない）、`sapphire-agent-gui`（bevy の plugin として bevy_egui を足す、このリポジトリのアプリの型）、sapphire-agent の ACP サーバー（`GET /acp`、`POST /rpc`）、sapphire-agent の MCP over ACP（`"type": "acp"`、`acp__<serverName>__<tool>`）
-- **この仕様が書くのは第1マイルストーンだけ。**クラシックス本体とサンドボックスは、それぞれ別の仕様で書く。
+- Date: 2026-11-13
+- Status: Approved (the round-1 review findings, and the five advisories given at approval, are folded into the decisions in §1 and into the sections they touch)
+- **Scope**: `crates/padparadscha-common`, `crates/padparadscha-table`, `classics/crates/padparadscha-classics-core`, `classics/desktop`, `classics/headless`, `classics/mobile`, `classics/web`
+- **References**: `BOOTSTRAP.md` at the repository root, `corundum-framework-platform` (`dirs`, per-OS plumbing), `corundum-framework-gui` (`look` / `theme` / `i18n` / Lucide icons. egui widgets; eframe is not added), `sapphire-agent-gui` (adds bevy_egui as a bevy plugin; the shape of an app in this repository), sapphire-agent's ACP server (`GET /acp`, `POST /rpc`), sapphire-agent's MCP over ACP (`"type": "acp"`, `acp__<serverName>__<tool>`)
+- **This spec covers milestone 1 only.** Classics proper and the sandbox are each written up in their own spec.
 
-## 1. 目的とスコープ
+## 1. Purpose and Scope
 
-テーブルゲームエンジンを、コイントス1本で端から端まで通す。コイントスは独立したゲームではなく、エンジンが能力として持つ**おまけ**で、クラシックスのコレクションに1項目として並ぶ。
+Run the tabletop game engine end to end on one thing: coin toss. Coin toss is not a game in its own right — it is a **bonus** capability the engine carries, listed as one entry of the classics collection.
 
-### このマイルストーンで確かめること
+### What this milestone verifies
 
-「いっしょに遊べている」感じが、この形で出るかどうか。数値の出来不出来ではなく、**フミトがどう感じたかが基準**になる（§11）。1人のユーザーと1人の AI の二人プレイを目標にする（`BOOTSTRAP.md` の前提どおり）。
+Whether that feeling of "playing together" comes out of this shape. The bar is not how well the numbers come out — **what the author felt is the last word** (§11). The target is a two-player game: one user and one AI (as `BOOTSTRAP.md` already assumes).
 
-### 決めたこと（フミト）
+### Decided (by the author)
 
-| 決定 | 内容 |
+| Decision | What |
 |---|---|
-| クレート配置 **A**（2026-11-13） | コイントスは padparadscha-table **側のエンジン能力**として実装する。classics-core はそれをコレクションの1項目として名前を出すだけ |
-| 物理 **rapier3d**（2026-11-13） | 重いとは分かっている。今はこれでいく |
-| wasm **第1スライスから**（2026-11-13） | 後回しにしない |
-| セッション **1つだけ共有**（2026-11-13） | ACP セッションは1つ。チャットとゲームは同じ部屋 |
-| **bevy が軸**（レビュー1周目でフミト承認） | エンジンもアプリの窓も bevy。egui は**部品**（チャット欄・タイトル・設定）で、bevy の窓の中に bevy_egui で乗る。eframe と「egui の枠」は architecture ではない。bevy はこのマイルストーンに入れる（後回しにしない） |
-| **コマンドの順番**（レビュー1周目でフミト承認） | このマイルストーンは単純な FIFO の列。厳格な交互のターンは後のゲーム側の課題として入れる（§5.1） |
+| Crate layout **A** (2026-11-13) | Coin toss is implemented as **an engine capability on the padparadscha-table side**. classics-core only names it, as one entry of the collection |
+| Physics **rapier3d** (2026-11-13) | We know it is heavy. Going with it for now |
+| wasm **from the first slice** (2026-11-13) | Not deferred |
+| Session **one session, shared** (2026-11-13) | One ACP session. Chat and game are the same room |
+| **bevy is the axis** (approved by the author in review round 1) | Both the engine and the app window are bevy. egui is **widgets** (the chat panel, the title, the settings) riding inside the bevy window through bevy_egui. eframe and an "egui shell" are not the architecture. bevy goes into this milestone (not deferred) |
+| **command order** (approved by the author in review round 1) | This milestone uses a plain FIFO queue. Strict alternating turns are left as a later, game-side concern (§5.1) |
 
-### 用語（この仕様と、後の実装計画を読むための約束）
+### Terms (the contract for reading this spec and the implementation plan that follows)
 
-| 語 | この仕様での意味 |
+| Term | What it means in this spec |
 |---|---|
-| クライアント | desktop、mobile、web の窓を出す側 |
-| ゲームサーバー | padparadscha 側のサーバー。headless ではそのもの、desktop と mobile ではクライアントの中にいる |
-| エージェント | sapphire-agent。**ACP のサーバー**で、ゲームサーバーの接続する相手 |
-| 会話 | 共有された1つの ACP セッションの流れ（フミトの発話、エージェントの返事、ゲーム由来の行） |
-| コマンド | peer が打つもの（`toss` / `log`）。受け取られると seq つきの行になる |
-| `GameEvent` | コマンドから出た状態変化の行 |
-| ログ | コマンドと `GameEvent` を `seq` つきで追記していくだけの1つの列。**ゲームの状態の正（ただしい形）**（§7.3） |
-| feed | ゲームサーバーがクライアントに流すもの（ログの追加と、会話の中身） |
+| client | The side that produces a window: desktop, mobile, web |
+| game server | The padparadscha-side server. It is the binary itself under headless; under desktop and mobile it lives inside the client |
+| the agent | sapphire-agent. **The ACP server**, the peer the game server connects to |
+| conversation | The flow of the one shared ACP session (the user's utterances, the agent's replies, the game-originated lines) |
+| command | What a peer issues (`toss` / `log`). Once accepted it becomes a `seq`-tagged row |
+| `GameEvent` | The state-change row a command produces |
+| log | The one append-only sequence that accumulates commands and `GameEvent`s under `seq`. **The canonical form of the game state** (§7.3) |
+| feed | What the game server streams to clients (log appends and conversation content) |
 
-### スコープ外（意図的に入れないもの）
+### Out of scope (left out on purpose)
 
-- 得点板、順位、戦績。コイントスはおまけで、ゲームを1つ増やすものではない。
-- 他のテーブルトップゲーム（トランプ、TRPG 系のオリジナル）。クラシックス本体の仕様で書く。
-- サイコロ。コイントスと同じ読み出しの仕組みに後で乗せられる形にだけしておく。今回は実装しない。
-- 厳格な交互のターン、手番、待った。今回は FIFO の列だけ（§5.1）。
-- 設定の項目を増やすこと。言語、テーマ、サーバーの URL は corundum-framework の設定がすでに持つ。
-- 複数ユーザー、認証と権限の作り込み、ボイス。今は1人でもう1人は AI。
-- アニメーション、音、エフェクトの作り込み。動くことを確かめる分だけ動かす。
+- Scoreboards, standings, records. Coin toss is a bonus, not another game being added.
+- Other tabletop games (cards, original TRPG systems). Those are written up in the classics-proper spec.
+- Dice. Kept only in the shape of being loadable onto the same read-out mechanism later. Not implemented this time.
+- Strict alternating turns, whose turn it is, waiting. This time it is only a FIFO queue (§5.1).
+- Adding settings items. Language, theme and the server URL are already in corundum-framework's settings.
+- Multiple users, auth and permissions work, voice. Right now it is one person, and the other is an AI.
+- Animation, sound and effects work. Things move only as much as is needed to show they move.
 
-## 2. 全体の形
+## 2. Overall Shape
 
-### 2.1 クレートと分担
+### 2.1 Crates and Division of Labor
 
-| クレート | 役割 | 依存するもの |
+| Crate | Role | Depends on |
 |---|---|---|
-| `padparadscha-common` | アプリの土台。bevy の plugin として、ACP セッションを結び、タイトルと設定とチャットパネルを描き、MCP ツールの登録をする。クラシックスとサンドボックスで共用する「全体のながれ」 | bevy（default-features = false）、bevy_egui、corundum-framework-gui（default-features = false。eframe を足さない）、corundum-framework-platform、agent-client-protocol、rmcp、tokio |
-| `padparadscha-table` | テーブルゲームエンジン。bevy の plugin として動く：テーブル、コマンド列、剛体物体と rapier3d、状態変化を `GameEvent` にし、それを会話の流れに変える層。**コイントスはここに置いたエンジン能力** | padparadscha-common、rapier3d、serde、tokio |
-| `padparadscha-classics-core` | アソビ大全的なコレクションを host する。コイントスを「おまけ」の印で1項目として並べるだけを持つ | padparadscha-table |
-| `classics/desktop` | bevy の窓を出すクライアント。ゲームサーバーを同じプロセスの中の別スレッドとして起こす | padparadscha-classics-core、padparadscha-common、bevy（`bevy_winit` などの窓と描画の plugin） |
-| `classics/headless` | 窓なしのゲームサーバーバイナリそのもの。desktop と同じコマンドと API を持つ | padparadscha-classics-core（窓と描画の plugin なし） |
-| `classics/mobile` | iOS / Android のクライアント。同じながれを、窓だけ変えて使う | padparadscha-classics-core、padparadscha-common、bevy |
-| `classics/web` | wasm クライアント。**サーバーは同梱しない**。同一オリジンのサーバーの API だけ使う | padparadscha-classics-core、padparadscha-common、bevy（web の backend）、wasm-bindgen / web-sys |
+| `padparadscha-common` | The app's foundation. Shipped as a bevy plugin: binds the ACP session, renders the title, the settings and the chat panel, registers the MCP tools. The overall flow shared by classics and the sandbox | bevy (`default-features = false`), bevy_egui, corundum-framework-gui (`default-features = false`; without eframe), corundum-framework-platform, agent-client-protocol, rmcp, tokio |
+| `padparadscha-table` | The tabletop game engine, running as a bevy plugin: the table, the command queue, rigid bodies and rapier3d, state changes turned into `GameEvent`s, and the layer that turns those into conversation lines. **Coin toss is the engine capability placed here** | padparadscha-common, rapier3d, serde, tokio |
+| `padparadscha-classics-core` | Hosts the compendium-style collection. Holds only the listing of coin toss as one entry under the bonus mark | padparadscha-table |
+| `classics/desktop` | Client that produces a bevy window. Runs the game server as another thread of the same process | padparadscha-classics-core, padparadscha-common, bevy (the window and render plugins, `bevy_winit` and friends) |
+| `classics/headless` | The windowless game-server binary itself. Same commands and API as desktop | padparadscha-classics-core (without the window and render plugins) |
+| `classics/mobile` | iOS / Android client. The same flow, with only the window changed | padparadscha-classics-core, padparadscha-common, bevy |
+| `classics/web` | wasm client. **Does not bundle the server.** Uses only the same-origin server's API | padparadscha-classics-core, padparadscha-common, bevy (the web backend), wasm-bindgen / web-sys |
 
-- 配置は asteria と同じ：ライブラリは `crates/` と `<成果物>/crates/`、バイナリはリポジトリ直下の短い名前のディレクトリ（パッケージ名は `padparadscha-` 付き）。
-- classics-core は padparadscha-table にだけ依存する。padparadscha-voxel はこのマイルストーンでは使わない。
-- アプリのクレートは eframe に依存しない。egui が必要なのはチャット欄・タイトル・設定の部品だけ。corundum-framework-gui は `eframe` feature を落として足す（sapphire-agent-gui がそうしている）。
-- classics/web が padparadscha-table から読むのは、物体とテーブルの描画と、静止姿勢の読み出しだけ。物理のシミュレーションは各 peer で動く（§5.2）。
+- Layout matches asteria: libraries in `crates/` and `<artifact>/crates/`, binaries in short-named directories at the repository root (package names carry the `padparadscha-` prefix).
+- classics-core depends on padparadscha-table alone. padparadscha-voxel is not used in this milestone.
+- The app crates do not depend on eframe. egui is needed only for the chat panel, title and settings widgets. corundum-framework-gui is added with its `eframe` feature off (which is what sapphire-agent-gui already does).
+- What classics/web reads out of padparadscha-table is only the body and table rendering and the resting-pose read-out. The physics simulation runs on every peer (§5.2).
 
-### 2.2 依存の向き
+### 2.2 Direction of Dependencies
 
-- `corundum-framework-platform`（dirs、locale）と `corundum-framework-gui`（look、theme、i18n、icons）を `padparadscha-common` が使う。
-- `padparadscha-table` は `padparadscha-common` と rapier3d に依存する。
-- `padparadscha-classics-core` は `padparadscha-table` にだけ依存する。
-- 4つのクライアントは classics-core と padparadscha-common に依存する。クライアント同士は依存しない。
-- **アプリは bevy の plugin を足した app、その plugin として common と table を足す**（sapphire-agent-gui の `AgentGuiPlugin` と同じ型）。窓と OS の仕組みのことは app の側にだけ残す。
-- **egui は1つだけ**。bevy_egui が re-export する egui と同じ major を全クレートで使う（2つの egui は1つのアプリを共有できない）。
-- OS 固有の処理は `#[cfg]` のモジュールに分ける。ディレクトリは `corundum_framework::dirs` を通してだけ取る。
+- `padparadscha-common` uses `corundum-framework-platform` (dirs, locale) and `corundum-framework-gui` (look, theme, i18n, icons).
+- `padparadscha-table` depends on `padparadscha-common` and on rapier3d.
+- `padparadscha-classics-core` depends on `padparadscha-table` alone.
+- The four clients depend on classics-core and on padparadscha-common. They do not depend on one another.
+- **The app is an app with bevy plugins added, and common and table are among those plugins** (the shape of sapphire-agent-gui's `AgentGuiPlugin`). Everything about windows and per-OS plumbing stays on the app side only.
+- **exactly one egui**. Every crate uses the same major of egui as the one bevy_egui re-exports (two egui stacks cannot share one app).
+- OS-specific handling goes into `#[cfg]` modules. Directories are taken only through `corundum_framework::dirs`.
 
-### 2.3 主要技術
+### 2.3 Core Technologies
 
-| 用途 | 採用するもの |
+| Purpose | What is adopted |
 |---|---|
-| 窓と実行の軸 | **bevy 0.20**（`default-features = false` で足し、app が窓と backend を足す）。headless は窓と描画の plugin を足さないだけ |
-| egui の部品（チャット欄・タイトル・設定） | bevy_egui（sapphire-turtle の fork、egui 0.37 の branch）＋ egui_extras（`svg`。Lucide アイコンをテクスチャにする） |
-| look と翻訳 | corundum-framework-gui（`look`、`theme`、`i18n` の `Resources` / `register` / `install`、`check`）。クレートごとに `.ftl` を embed して `register` する |
-| OS / スマートフォンのディレクトリと仕組み | corundum-framework-platform（`dirs`、`locale`） |
-| エージェントとの会話を結ぶ | ACP（`agent-client-protocol`、WebSocket） |
-| エージェントにゲームを触らせる | MCP over ACP（`"type": "acp"`） |
-| クライアント ↔ ゲームサーバー | HTTP 上の JSON-RPC 2.0 と WebSocket の feed |
-| 実行時 | tokio（bevy の予定表とは別に、アプリのクライアント用の実行時を1つ持つ。sapphire-agent-gui と同じ型） |
-| 物理 | rapier3d（剛体、`f64`） |
-| 乱数と読み出し | `rand_xoshiro`（整数だけ。§7.1）と `fixed` crate |
+| The window and the runtime axis | **bevy 0.20** (added with `default-features = false`; the app adds the window and the backend). headless merely leaves out the window and render plugins |
+| The egui widgets (chat panel, title, settings) | bevy_egui (the sapphire-turtle fork, the egui 0.37 branch) plus egui_extras (`svg`; turns Lucide icons into textures) |
+| look and translation | corundum-framework-gui (`look`, `theme`, `i18n`'s `Resources` / `register` / `install`, `check`). Each crate embeds its own `.ftl` and `register`s it |
+| OS / smartphone directories and plumbing | corundum-framework-platform (`dirs`, `locale`) |
+| Binding the conversation with the agent | ACP (`agent-client-protocol`, WebSocket) |
+| Letting the agent touch the game | MCP over ACP (`"type": "acp"`) |
+| client ↔ game server | JSON-RPC 2.0 over HTTP, plus the WebSocket feed |
+| runtime | tokio (the app client keeps one runtime of its own, apart from bevy's own scheduling. The shape of sapphire-agent-gui) |
+| physics | rapier3d (rigid, `f64`) |
+| RNG and read-out | `rand_xoshiro` (integers only; §7.1) and the `fixed` crate |
 
-## 3. 1つのセッション（チャットとゲームは同じ部屋）
+## 3. One Session (Chat and Game Are the Same Room)
 
-- ゲームサーバーが **ACP クライアント**、sapphire-agent が **ACP サーバー**。結ぶセッションは**1つだけ**。
-- フミトの発話も、ゲームの状態変化も、同じ会話としてエージェントに届く。「フミトがコイントスを振った。表が出た」は、発話の1つとして会話に並ぶ。
-- エージェントの返事は、ゲームと並べてチャット欄に出る。
-- ゲームサーバーは MCP サーバーでもあり、ACP 接続の上に自分のツールを出す（§4）。エージェントはそれを使ってゲームに干渉する。ユーザーはクライアントから干渉する。**両者は peer**。
+- The game server is the **ACP client**; sapphire-agent is the **ACP server**. They bind **exactly one** session.
+- The user's utterances and the game's state changes both arrive at the agent as the same conversation. "<user> tossed the coin. It came up heads." lines up in the conversation as one utterance.
+- The agent's replies appear in the chat panel alongside the game.
+- The game server is also an MCP server, and publishes its own tools over the ACP connection (§4). The agent uses those to interfere with the game; the user interferes from the client. **The two are peers.**
 
-### 3.1 ゲーム由来の行は、正はログ、描画は見る側
+### 3.1 Game-Originated Lines: Canonical in the Log, Rendered by the Viewer
 
-| もの | 正（ただしい形） | 会話（ACP セッション）にのるもの | クライアントへの feed |
+| thing | canonical form | what lands in the conversation (the ACP session) | what lands on the client feed |
 |---|---|---|---|
-| フミトの発話 | テキスト | テキスト | テキスト |
-| エージェントの返事 | テキスト | テキスト | テキスト |
-| ゲーム由来の状態変化 | **`seq` つきのログの1行**（`id` と `args`） | 構造化されたまま（§3.2） | 構造化されたまま |
+| the user's utterance | text | text | text |
+| the agent's reply | text | text | text |
+| a game-originated state change | **one `seq`-tagged log row** (`id` and `args`) | structured as-is (§3.2) | structured as-is |
 
-- 後から言語を切り替えても、ログの中の古い1行は変わらない。変わるものが見る側の描画だけなのは、これが理由。
+- Switching language later does not change the old rows in the log. That is why the only thing that changes is the viewer's rendering.
 
-### 3.2 会話の中の1行の言語
+### 3.2 The Language of a Line in the Conversation
 
-- **ゲームサーバーが運ぶのは、構造化された1行だけ。**テキストに直すのは読む側で、①セッション（エージェント）側はセッションの言語設定で、②クライアントは見る側の言語で（`tr!`）描く。1つのセッションを2つのクライアントが別の言語で読むことはある（desktop は日本語、ブラウザは英語）。
-- コマンドログ由来のイベント（§7.3）も §6.5 の `GameEvent` も、ACP の `session/update` に乗るときの文章は①の側、つまり**セッション（エージェント）の言語設定**に従う。②の側（窓のチャット欄）は見る側の言語で描く。この2つは別のものとして区別する。
+- **What the game server carries is a structured line, nothing else.** Turning it into text is the reader's job: ① the session (the agent) side renders with the session's language setting, ② the client renders in the viewer's own language (`tr!`). Two clients may read one session in different languages (desktop in Japanese, the browser in English).
+- Whether it is a command-log-originated event (§7.3) or the `GameEvent` of §6.5, when it rides onto ACP's `session/update` the wording follows ①, that is, **the session's (the agent's) language setting**. ② (the window's chat panel) renders in the viewer's language. These two are kept distinct.
 
-## 4. padparadscha-common（全体のながれ）
+## 4. padparadscha-common (the Overall Flow)
 
-bevy の plugin 1つとして出す。アプリの app が bevy の `DefaultPlugins` と自分の窓を足し、その上この plugin と table の plugin を足す（sapphire-agent-gui と同じ型）。
+Shipped as one bevy plugin. The app's app adds bevy's `DefaultPlugins` and its own window, then adds this plugin and the table plugin on top (the shape of sapphire-agent-gui).
 
-### 4.1 起動とサーバーの接続
+### 4.1 Startup and Server Connection
 
-1. `corundum_framework::dirs` からデータとキャッシュと設定のディレクトリを取る。
-2. アプリの設定を読む：`[acp].url`（エージェントの URL。既定はローカル）、`[server].mode`（`local` / `remote`）。言語とテーマは corundum の `look` がすでに持つので、ここは持たない。
-3. `local` なら同じプロセスの中に table の plugin を足す（desktop、mobile）。`remote` なら URL に結ぶ。headless は窓と描画の plugin を足さないだけで、plugin 群そのものは同じ。サーバーそのものなので `[server].mode` を持たない。
-4. `[acp].url` に WebSocket で結ぶ。API バージョンのハンドシェイクが一致しなければ、接続を拒否してわかりやすいメッセージを出す。
+1. Take the data, cache and settings directories from `corundum_framework::dirs`.
+2. Read the app's settings: `[acp].url` (the agent's URL; local by default), `[server].mode` (`local` / `remote`). Language and theme are already in corundum's `look`, so nothing is carried here.
+3. Under `local`, add the table's plugin to the same process (desktop, mobile). Under `remote`, connect to the URL. headless merely leaves out the window and render plugins; the set of plugins itself is the same. It is the server itself, so it carries no `[server].mode`.
+4. Connect to `[acp].url` over WebSocket. If the API-version handshake does not match, refuse the connection and show a message that is clear.
 
-### 4.2 チャットパネル
+### 4.2 Chat Panel
 
-- bevy_egui が窓の中に乗せる egui で描く1画面。egui の枠（corundum-framework-gui の `Shell` / `ShellApp`）は使わない。狭い幅（スマートフォン、ブラウザの隅）でも使える。
-- 上から順に、発話、返事、システム種（ゲーム由来の1行）を並べる。入力は1つ。発話は `chat.send` としてゲームサーバーに届き、ACP のユーザーメッセージになる。
-- チャットパネルは会話とログの流れを描くだけで、ゲームの状態を自分で持たない。
+- One screen rendered in the egui that bevy_egui rides into the window. Not an egui shell (corundum-framework-gui's `Shell` / `ShellApp`). Usable at narrow widths (a phone, a browser corner).
+- Top to bottom: utterances, replies, system-role lines (the game-originated ones). One input. An utterance reaches the game server as `chat.send` and becomes the ACP user message.
+- The chat panel only renders the flow of the conversation and the log; it carries no game state of its own.
 
-### 4.3 MCP サーバーとしての登録
+### 4.3 Registration as an MCP Server
 
-- ゲームサーバーは MCP サーバーでもあり、ACP 接続の上にツールを出す。sapphire-agent の側でツール名は `acp__<serverName>__<tool>` になる。このマイルストーンで出す MCP サーバー名は `table`。
-- ローカルでもリモートでも、クライアント ↔ ゲームサーバーは JSON-RPC 2.0（`POST /rpc`）と feed（`GET /ws`）で、**経路が変わるだけ**（ローカルは `127.0.0.1` のループバック）。sapphire apps と違って IPC は使わない。
+- The game server is also an MCP server and publishes tools over the ACP connection. On the sapphire-agent side the tool name becomes `acp__<serverName>__<tool>`. The MCP server name this milestone publishes is `table`.
+- Local or remote, client ↔ game server is JSON-RPC 2.0 (`POST /rpc`) and the feed (`GET /ws`); **only the route changes** (local is the `127.0.0.1` loopback). Unlike sapphire apps, no IPC.
 
-## 5. padparadscha-table（テーブルゲームエンジン）
+## 5. padparadscha-table (the Tabletop Game Engine)
 
-### 5.1 テーブルとコマンド列
+### 5.1 The Table and the Command Queue
 
-- `Table`：テーブル（寸法、縁、壁）。物体は上に置かれたものだけ。
-- `Session`：セッション ID、**種（seed、§7.1）**、**コマンド列**、物体の一覧を持つ。
-- **このマイルストーンは単純な FIFO の列**。受け取られたコマンドは順番に入列し、その結果が会話に1行として出る。誰が打ったコマンドか（`Actor`：ユーザー / エージェント）を各行が持つ。
-- コマンド1つと、その結果の `GameEvent` は**同じ `seq` を1つだけ共有する**（コマンドにつきログの1行。§6.5）。
-- **厳格な交互のターン（手番、待ち手、誰の番か）は入れない**。後のゲームの課題として残すもの（§1 のスコープ外）。
+- `Table`: the table (dimensions, edge, wall). Bodies are only what is placed on top of it.
+- `Session`: carries the session ID, the **seed (§7.1)**, the **command queue**, and the list of bodies.
+- **This milestone uses a plain FIFO queue.** Accepted commands enter the queue in order, and their outcome appears as one conversation line. Every row carries who issued it (`Actor`: user / agent).
+- A command and the `GameEvent` it produces **share exactly one `seq`** (one log row per command; §6.5).
+- **No strict alternating turns (whose turn it is, waiting, who is up).** Left as a later game-side concern (out of scope in §1).
 
-### 5.2 剛体物体と物理
+### 5.2 Rigid Bodies and Physics
 
-- 剛体物体は `Body` 1つとして扱う。ゲームごとに物体の形を作り直さない。
-- コイントスも、後で来るサイコロも「テーブル上で跳ねる物体」は同じもの。だからエンジンは `simulate` 1本だけを持つ。ゲームごとに物理を書き直さない。
-- 物理の型は rapier3d の `Vector3<f64>` そのもの。シミュレーション側に固定小数点の型は入れない。固定小数点を出すのは §7.1 の読み出しだけ。
-- **シミュレーションは各 peer のプロセスで動く**。ゲームサーバーが**種と結果の権威**（正しい seq と結果の判定はサーバーが決める）。クライアントは同じコマンドログと種から自分の側で同じものを動かし、同じ場面を作る（§7.3）。
+- A rigid body is handled as one `Body`. Body shapes are not rebuilt per game.
+- Coin toss and the dice that come later are the same "body bouncing on a table". So the engine carries `simulate` alone. Physics is not rewritten per game.
+- The physics types are rapier3d's own `Vector3<f64>`. No fixed-point types go into the simulation side. The only fixed point is the read-out of §7.1.
+- **The simulation runs in every peer's process.** The game server is **the authority on the seed and the outcome** (the server decides the correct seq and the adjudication). Clients run the same thing on their own side from the same command log and seed, and build the same scene (§7.3).
 
-### 5.3 状態変化 → `GameEvent` → 会話の流れ
+### 5.3 State Change → `GameEvent` → Conversation Flow
 
-- 状態変化は `GameEvent { id, args, seq }` になる。`id` は Fluent のメッセージ ID、`args` は `who`（誰が振ったか）と結果。
-- `GameEvent` は2つの場所に行く：
-  1. **会話**：§3.2 の言語で描画したテキストとして1行
-  2. **feed**：構造化されたままクライアントに（見る側の言語に描き直される）
-- この変換の層が padparadscha-table にある。ゲームごとに書き直すものではない。
+- A state change becomes `GameEvent { id, args, seq }`. `id` is a Fluent message ID; `args` is `who` (who tossed it) and the outcome.
+- The `GameEvent` goes to two places:
+  1. **the conversation**: as one line of text rendered in the language of §3.2
+  2. **the feed**: structured as-is to the client (re-rendered into the viewer's language)
+- This conversion layer is what lives in padparadscha-table. It is not something rewritten per game.
 
-## 6. コイントス（エンジン能力、おまけ）
+## 6. Coin Toss (an Engine Capability, a Bonus)
 
-### 6.1 物体
+### 6.1 The Body
 
-厚さのある円盤。2つの面（表、裏）と縁。メッシュはエンジン側が作る。寸法は硬貨1枚ぶん（直径 24.0mm、厚さ 1.8mm、質量 5.0g、SI の `f64` の値）。
+A disc with thickness: two faces (heads, tails) and an edge. The mesh is made by the engine side. The dimensions are one coin (diameter 24.0mm, thickness 1.8mm, mass 5.0g; SI `f64` values).
 
-### 6.2 振る
+### 6.2 Tossing
 
-`toss` コマンドを受け取ると、種から決まる初期位置・向き・初速・角速度で物体をテーブルに出す。
+On receiving a `toss` command, the body is spawned on the table with the initial position, orientation, velocity and angular velocity that the seed decides.
 
-### 6.3 跳ねて静止する
+### 6.3 Bouncing to Rest
 
-rapier3d が 120Hz の固定ステップで動かし、静止したらキーフレーム（位置と向き）を打つ（§7.2）。
+rapier3d runs at a fixed 120Hz step, and when the body comes to rest a keyframe (position and orientation) is struck (§7.2).
 
-### 6.4 読み出し
+### 6.4 Read-Out
 
-静止した物体の**上を向いた面の法線**とテーブルの法線のなす角を読む。
+Read the angle between **the normal of the face pointing up on the resting body** and the table's normal.
 
-| 角 | 結果 |
+| angle | outcome |
 |---|---|
-| 45° 未満 | その面。表なら `heads`、裏なら `tails` |
-| 45° 以上（縁の上で立っている） | 判定できないので**自動で振り直す**。3回目でも決まらなければ「立っている」をイベントにして出す |
+| under 45° | that face. `heads` for heads, `tails` for tails |
+| 45° or more (standing on its edge) | cannot be adjudicated, so **it re-tosses on its own**. If the third try also fails to decide, "standing on edge" is emitted as an event |
 
-### 6.5 振り直しの番号
+### 6.5 Re-Toss Numbering
 
-**振り直しは新しい行を作らない。**コマンド1つに対してログの1行だけが残る（§5.1）。`args` は `{ who, outcome, attempt }` の `attempt`（0 から始める振り直しの番号、0 ≤ attempt ≤ 2）にそれを持つ。3回目のあとにも決まらなければ `outcome = edge`。
-- 振り直しの各回も**そのコマンド1つ分の乱数の列（`(種, seq)` から引いた1列、§7.1）からだけ**引く。コマンドごとに列が1本しかないので、`attempt` の番号はターゲット間で決定論的に同じになる。
+**A re-toss does not create a new row.** One command leaves exactly one log row (§5.1). It is carried in the `attempt` of `args = { who, outcome, attempt }` (the re-toss number, starting at 0; 0 ≤ attempt ≤ 2). If even the third try fails to decide, `outcome = edge`.
+- Each re-toss also draws **only from that one command's own stream of randomness (the one stream pulled from `(seed, seq)`; §7.1)**. Since there is only one stream per command, the `attempt` number comes out deterministically the same across targets.
 
-### 6.6 イベント
+### 6.6 The Event
 
-`coin-toss.outcome`、`args = { who, outcome, attempt }` →「フミトがコイントスを振った。表が出た」。
+`coin-toss.outcome`, `args = { who, outcome, attempt }` → "<user> tossed the coin. It came up heads."
 
-### 6.7 classics-core 側の1行
+### 6.7 The classics-core Side's One Line
 
-classics-core は「コイントス」を `kind = bonus`（おまけ）の印で一覧に並べるだけを持つ。物理も判定も持たない。
+classics-core holds only the listing of "coin toss" in the collection under `kind = bonus`. It carries neither physics nor adjudication.
 
-## 7. 同期：決定論的なシミュレーションと入力コマンド
+## 7. Sync: Deterministic Simulation and Input Commands
 
-### 7.1 種と乱数
+### 7.1 Seed and Randomness
 
-- `Seed(u64)`：**セッションにつき1つ**。セッションを作るときに1回だけ作られ、join のときにクライアントに届く（§7.3）。
-- 1コマンド分の乱数は `(セッションの種, コマンドの seq)` から引いた**符号なしの整数の列だけ**から作る。名を張るのは **`rand_xoshiro` の `Xoshiro256PlusPlus`**（状態は u64 × 4、`(種, seq)` を SplitMix64 で起こす）。`f64` の演算を乱数に入れられないから、float の乱数生成器は組み込まない。
-- **整数から固定小数点への写し方**：`u64` の上の32ビットをそのまま `fixed` の `U0F32`（整数部0、小数部32）の小数部に入れる。`[0, 1)` の固定小数点が、切り捨てと丸めなしでそのまま出る。範囲 `[lo, hi)` は `lo + (hi - lo) * x` の固定小数点の掛け算だけで決める。
-- §6.4 の角の比べ方は `I16F16` の内積だけでやる（`cos` は比較する2つの向きを同じ固定小数点に落としてから内積を取る）。`cos` と `atan2` を判定に入れないのは、判定がターゲットの `f64` の演算に左右されないようにするため。
-- 物体に渡す量（初速、角速度、初期の向き）は、その固定小数点から決まる。
+- `Seed(u64)`: **one per session**. Made once when the session is created, and delivered to clients at join (§7.3).
+- The randomness for one command comes **only from a stream of unsigned integers** pulled from `(the session's seed, the command's seq)`. What is named is **`Xoshiro256PlusPlus` from `rand_xoshiro`** (state is u64 × 4; `(seed, seq)` is expanded by SplitMix64 to seed it). Because `f64` arithmetic cannot be let into the randomness, no floating-point RNG generator is included.
+- **How integers are mapped to fixed point**: the upper 32 bits of the `u64` go straight into the fraction of `fixed`'s `U0F32` (0 integer bits, 32 fraction bits). The `[0, 1)` fixed-point value comes out as-is, with no truncation and no rounding. A range `[lo, hi)` is decided by the fixed-point multiply `lo + (hi - lo) * x` alone.
+- The angle comparison of §6.4 is done with an `I16F16` dot product alone (the `cos` is a dot product taken after the two orientations being compared are dropped onto the same fixed point). `cos` and `atan2` stay out of the adjudication so that it is not swayed by a target's `f64` arithmetic.
+- The values handed to the body (initial velocity, angular velocity, initial orientation) come from those fixed-point values.
 
-### 7.2 コマンド（同期の中身）
+### 7.2 Commands (What the Sync Carries)
 
-ゲームの状態の同期は**決定論的なシミュレーションと入力コマンド**。全フレームのストリームではない。
+Game state is synced by **deterministic simulation and input commands**. Not a stream of every frame.
 
-| コマンド | 中身 | 結果 |
+| command | content | result |
 |---|---|---|
-| `toss` | 誰が振ったか | §6 の結果が `GameEvent` としてログに1行 |
-| `log` | フミトが打ち込んだメモ（物体の名前と、その理由） | 会話に1行として乗る。物理は動かない |
+| `toss` | who tossed it | the §6 outcome, as one `GameEvent` log row |
+| `log` | a note the user typed (the name of a body, and the reason) | rides into the conversation as one line. Physics does not move |
 
-- 静止の決め手は「物体が静止した」ことの1個だけ。そのキーフレーム（位置と向き）がコマンドの結果として運ばれる。
-- キーフレームは**結果の正（権威）としての参照**。各 peer は自分の側でシミュレーションを動かし続ける（§5.2）ので、キーフレームは自分の列が追いつかないときの**フォールバックとしてだけ**使う（シミュレーションの代わりになるものではない。§13.1 の試作で決定論が守れないときは §7 ごと書き直す）。
-- フミトはクライアントの「振る」ボタンから、エージェントは `acp__table__toss_coin` から、同じ `toss` を打つ。順番は §5.1 の列が持つ。
+- There is exactly one condition for calling rest: "the body came to rest". Its keyframe (position and orientation) is carried as the command's result.
+- The keyframe is **the authoritative outcome reference**. Every peer keeps running the simulation on its own side (§5.2), so the keyframe is used **only as the fallback** for when a peer's own queue has not caught up — not instead of the simulation. (If §13.1's prototype shows determinism does not hold, §7 is rewritten as a whole.)
+- The user issues the same `toss` from the client's "toss" button; the agent issues it from `acp__table__toss_coin`. The ordering is held by the queue of §5.1.
 
-### 7.3 ログ：スナップショットと feed は途切れなく続く
+### 7.3 The Log: Snapshot and Feed Continue Without a Gap
 
-- ログは**追記のみで、`seq` がつく**。コマンド1つとその結果の `GameEvent` は同じ `seq` を1つだけ共有する（§5.1、§6.5）。
-- 入ってくるクライアントは join のときに**ある seq までのスナップショット**を受け取る。
-- feed は**その seq の続き**から流れる。**スナップショットと feed の間に穴がないこと（途切れのない再現）が契約**で、§12 のテストの対象（§9、§12）。
-- 結んだクライアントは自分の側で同じシミュレーションを動かし、同じ場面を作る（§5.2）。
-- **切れている間も列は消えない**：受け取れたら自分の `seq` を覚えている。再接続時は `session.join` に **`from_seq`**（自分が受け取れた次の `seq`）を添えて、欠けている分だけを受け取る。`from_seq` は `POST /rpc` の `session.join` の引数で運ばれるだけで、`GET /ws` のハンドシェイクは `ticket` しか載せない（§9.1）。
+- The log is **append-only and `seq`-tagged**. A command and the `GameEvent` it produces share exactly one `seq` (§5.1, §6.5).
+- A client arriving is given, at join, **a snapshot of the log up to some seq**.
+- The feed flows **from the continuation of that seq**. **There being no gap between snapshot and feed (gapless replay) is the contract**, and is a target of §12's tests (§9, §12).
+- A connected client runs the same simulation on its own side and builds the same scene (§5.2).
+- **The queue does not vanish while disconnected**: once received, the client remembers its `seq`. On reconnect it passes **`from_seq`** (the next `seq` it has not received yet) to `session.join`, and receives only what was missing. `from_seq` travels as an argument of `POST /rpc`'s `session.join` alone; the `GET /ws` handshake carries `ticket` and nothing else (§9.1).
 
-## 8. 4つのターゲットと同じ API
+## 8. The Same API Across the Four Targets
 
-| ターゲット | ゲームサーバー | 使いもの |
+| target | game server | what it uses |
 |---|---|---|
-| desktop | 同じプロセスの別スレッドとして内蔵 | `POST /rpc` と `GET /ws`（ループバック） |
-| mobile | 同じプロセスの別スレッドとして内蔵 | 同上 |
-| headless | **サーバーバイナリそのもの** | 同上（remote のクライアントから見える） |
-| web（wasm） | **同梱しない** | 同一オリジンのサーバーの `POST /rpc` と `GET /ws` |
+| desktop | embedded, as another thread of the same process | `POST /rpc` and `GET /ws` (loopback) |
+| mobile | embedded, as another thread of the same process | same as above |
+| headless | **the server binary itself** | same as above (visible to remote clients) |
+| web (wasm) | **not bundled** | the same-origin server's `POST /rpc` and `GET /ws` |
 
-- ローカルで起動したサーバーは、ブラウザがページを読み込んだのと同じオリジンを持つサーバーとして同じ API を出す。だからサイトの隅でこっそり遊ぶイースターエッグとして入れられる。
-- 配布の形も asteria と同じ：コマンドは1本で、desktop と mobile はそのコマンドに窓を足したもの、headless は窓を出さない同じバイナリ。
-- wasm の `GET /ws` はブラウザの `WebSocket` を使う。
-- mobile（iOS）の窓は bevy の iOS の窓の経路（sapphire apps がすでに持っているもの）の上で動く。この4つの中一番後に回る（§14）。
+- A server started locally publishes the same API as the server on the origin the browser loaded the page from. Which is why it can be added as an easter egg to poke at in a corner of the site.
+- The distribution shape also matches asteria: one command; desktop and mobile add a window to that command; headless is the same binary without a window.
+- wasm's `GET /ws` uses the browser's `WebSocket`.
+- The mobile (iOS) window runs on bevy's iOS window path (what sapphire apps already carries). It comes last of the four (§14).
 
 ## 9. API
 
-| ルート | 用途 |
+| route | purpose |
 |---|---|
-| `POST /rpc` | JSON-RPC 2.0。`server.info`（ハンドシェイク：API バージョン）、`session.join`（**スナップショット：セッション ID・種・`seq` までのログを返す。再接続時は `from_seq` を引数に取る、§7.3**）、`session.ticket`（§9.1）、`game.command`（`toss` / `log` を打つ）、`chat.send` |
-| `GET /ws?ticket=…` | feed。スナップショットの続きの seq から、ログの追加と会話の中身（発話、返事、`GameEvent` の構造化された形）を流す |
+| `POST /rpc` | JSON-RPC 2.0. `server.info` (handshake: API version), `session.join` (**snapshot: returns the session ID, the seed and the log up to a `seq`. Takes `from_seq` as an argument when reconnecting, §7.3**), `session.ticket` (§9.1), `game.command` (issues `toss` / `log`), `chat.send` |
+| `GET /ws?ticket=…` | the feed. From the seq continuing the snapshot, streams log appends and conversation content (utterances, replies, the structured form of `GameEvent`s) |
 
-### 9.1 `GET /ws` の認証（ブラウザは `Authorization` を持てない）
+### 9.1 `GET /ws` Auth (a Browser Cannot Carry `Authorization`)
 
-- `Authorization` を載せられないのは、ブラウザの `WebSocket` のハンドシェイクだけ（fetch と違ってヘッダを選べない）。だから **`GET /ws` は `?ticket=` で結ぶ**。ローカルでも mobile でも同じ形を使う（経路だけが変わる、§4.3）。
-- チケットは `POST /rpc` の `session.ticket` で得る**使い捨ての、短命なもの**（既定 30秒、1回だけ使える）。`POST /rpc` の側は自分のヘッダを載せられる（ローカル、mobile、ブラウザのどれでも `Authorization: Bearer <token>`。ブラウザはページからトークンを取る）ので、**その認証を1回だけ WebSocket のハンドシェイクに手渡す**だけで足りる。
-- チケットはセッション ID に紐付く。未知、期限切れ、2回目の使用は、ハンドシェイクで 401。再接続は新しいチケットで打ち直す（§10）。
+- What cannot carry `Authorization` is only the browser's `WebSocket` handshake (unlike fetch, the headers cannot be chosen). So **`GET /ws` is connected with `?ticket=`**. Local and mobile use the same shape (only the route changes; §4.3).
+- The ticket comes from `session.ticket` on `POST /rpc`, and is **single-use and short-lived** (30 seconds by default, usable once). The `POST /rpc` side can carry its own header (local, mobile or browser, any of them `Authorization: Bearer <token>`; the browser takes the token from the page), so **handing that auth to the WebSocket handshake once** is enough.
+- Tickets are bound to a session ID. Unknown, expired, or a second use gives 401 at the handshake. Reconnecting is done by re-issuing with a new ticket (§10).
 
-## 10. エラー処理
+## 10. Error Handling
 
-| 事象 | 対応 |
+| situation | handling |
 |---|---|
-| エージェントに結べない、途中で切れた | 画面は「エージェントなし」で動き続ける。ゲームはそのまま遊べる。再接続はするが、その間も入力は受け取る |
-| feed とスナップショットの間に穴が出た | §7.3 の契約。クライアントは持っている次の seq を出して、欠けている分だけを受け取る |
-| チケットが未知・期限切れ・2回目の使用 | ハンドシェイクで 401。画面は新しいチケットを取り直して再接続する |
-| API バージョンが一致しない | わかりやすいメッセージを出して接続を拒否する |
-| 3回振っても縁の上で立っている | `outcome = edge` をイベントにして出す（§6.5）。**列そのものは止まらない**：ほかの peer のコマンドはそのまま通り、次のコマンドは並んだまま並ぶ。決まるのは「フミトがもう1回振って結果が出たとき」だけ |
-| まだ走っているシミュレーションの途中に次のコマンドが来た | コマンドは列に入って順番を待つ（§5.1） |
-| wasm が同じオリジンのサーバーに結べない | 「サーバーが見つからない」を1行出す。リクエストは打ち直せる |
-| 翻訳の id が見つからない | id をそのまま出し、miss は1回だけログに出す（corundum の `i18n` の挙動） |
+| cannot bind the agent, or it dropped mid-way | the screen keeps running as "no agent". The game stays playable. Reconnection happens, and input is still accepted meanwhile |
+| a gap appeared between the feed and the snapshot | the §7.3 contract. The client states the next seq it already has, and receives only what was missing |
+| ticket unknown, expired, or used a second time | 401 at the handshake. The screen fetches a new ticket and reconnects |
+| API versions do not match | show a clear message and refuse the connection |
+| still standing on its edge after 3 tosses | `outcome = edge` is emitted as an event (§6.5). **The queue itself is not blocked**: other peers' commands pass through as-is, and queued commands stay queued. What is decided is only "the user tossed once more and an outcome came out" |
+| the next command arrived while a simulation is still running | the command enters the queue and waits its turn (§5.1) |
+| wasm cannot bind the same-origin server | one line appears: "server not found". Requests can be retried |
+| a translation id is missing | the id is emitted as-is, and a miss is logged once (corundum's `i18n` behavior) |
 
-## 11. 成否の基準
+## 11. Success Criteria
 
-このマイルストーンは**「いっしょに遊べている」感じの実現可能性を見る試験**だ。だから基準は次の4つで、**最後に残るのはフミトがどう感じたか**である。
+This milestone is **a probe of whether the "playing together" feeling is reachable at all**. So the criteria are the four below, and **what is left at the end is what the author felt**.
 
-1. **デスクトップ**：フミトがチャット欄で喋り、ゲームの窓でコイントスを振る。「フミトがコイントスを振った。表が出た」がチャットにシステムメッセージとして出る。
-2. **sapphire-agent**：ACP セッションを結び、そのながれに返事をする（`acp__table__toss_coin` で答えることもできる）。
-3. **wasm**：ブラウザが同一オリジンのサーバーに結んで、同じ体験をそのままやり直す。
-4. **判定は物理の関数である**：表と裏は静止姿勢の読み出しから決まり、決定論のテストが通る。
+1. **desktop**: the user talks in the chat panel and tosses the coin in the game window. "<user> tossed the coin. It came up heads." appears in the chat as a system message.
+2. **sapphire-agent**: binds an ACP session and replies into that flow (it can also answer via `acp__table__toss_coin`).
+3. **wasm**: the browser binds the same-origin server and re-enacts the same experience.
+4. **adjudication is a function of the physics**: heads and tails are decided by the resting-pose read-out, and the determinism tests pass.
 
-感じた感じが「チャットしながらいっしょに遊んでいる」ものに足りなければ、足りないことを今回の成果として報告する。良い感じが出なかったという結果も、このマイルストーンの合格になる。
+If the feeling that came out does not amount to "playing together while chatting", then that shortfall is reported as this milestone's deliverable. A result of "no good feeling came out" is still a pass for this milestone.
 
-## 12. テスト
+## 12. Tests
 
-- **決定論**：同じ種と同じログから、x86_64、aarch64、`wasm32-unknown-unknown` で**同じ判定**が出ることを確かめる。物体の静止後の位置と向きは、`f64` の下位ビットまでではなく**読み出しの粒度（§6.4 の角の判定に足りる桁）で一致**を見、判定を変えない下位ビットの違いを不一致にしない。§7.1 の整数の列がターゲットで同じことも別に確かめる。振り直しの各回が同じ列から引かれ、`attempt` がどこでも同じになること（§6.5）も入れる。
-- **読み出し**：静止姿勢の一覧を作って、表、裏、立っているの3つが §6.4 どおりに分かれることを確かめる。縁の上で立ったものが必ず振り直しになり、§6.5 の `attempt` が入ること。3回目にも決まらなければ `outcome = edge` になり、その間も FIFO の列が止まらないこと（§10）。
-- **途切れのない再現（§7.3 の契約）**：join のスナップショットの `seq` と feed の1つ目の `seq` が続くこと、途中で切れて再接続したクライアントが `from_seq` を添えて同じ行を一度ずつだけ受け取ることを確かめる。コマンド1つに対してログの行は1行だけ（コマンドとその `GameEvent` が同じ `seq` を共有、§5.1）ことも見る。
-- **会話**：`GameEvent` がセッションに1行として乗り、セッションの言語で描画されること（§3.2）。`args` から見る側の言語に描き直されること。
-- **チケット**：`session.ticket` のチケットは1回だけ使えること、期限切れと2回目が 401 になること、新しいチケットで打ち直せること。
-- **通し**：headless を起こし、`session.join` → `game.command` → 会話に1行 → 別のクライアントが join して同じ行が出ることを確かめる。エージェントの側は sapphire-agent を起こす結合テストと、その代わりの小さな偽の ACP サーバーの両方を入れる。
-- **wasm**：CI で `wasm-bindgen-test` を使い、同一オリジンのサーバーに結んで同じ体験が通ることを確かめる。bevy と bevy_egui と rapier3d の wasm ビルドも CI のジョブで通す。
-- **CI**：Linux（x86_64 と arm64）、macOS、Windows でビルドとテストと `cargo deny`。wasm ビルドと `wasm-bindgen-test` は Linux のジョブだけ。
+- **determinism**: from the same seed and the same log, **the same adjudication** comes out on x86_64, aarch64 and `wasm32-unknown-unknown`. For the body's resting position and orientation, check **agreement at the read-out granularity (the digits §6.4's angle adjudication needs)**, not down to the low bits of `f64`, and do not treat low-bit differences that leave the adjudication unchanged as a mismatch. Separately confirm that §7.1's integer stream is the same across targets. Include that each re-toss draws from the same stream, so `attempt` is the same everywhere (§6.5).
+- **read-out**: build a set of resting poses and confirm that the three cases — heads, tails, standing — split exactly as §6.4 says. Confirm that something standing on its edge always re-tosses, and that §6.5's `attempt` is filled. Confirm that failing to decide by the third try sets `outcome = edge`, and that the FIFO queue is not blocked meanwhile (§10).
+- **gapless replay (the §7.3 contract)**: the `seq` of the join snapshot and the `seq` of the feed's first row continue one from the other; a client that dropped and reconnected passes `from_seq` and receives each of the same rows exactly once. Also check that one command leaves exactly one log row (the command and its `GameEvent` share one `seq`; §5.1).
+- **conversation**: the `GameEvent` rides into the session as one line, rendered in the session's language (§3.2). That it is re-rendered from `args` into the viewer's language.
+- **ticket**: `session.ticket`'s ticket is usable exactly once; expiry and a second use give 401; a new ticket lets it be re-issued.
+- **end to end**: start headless, and confirm `session.join` → `game.command` → one conversation line → another client joins and gets the same line. For the agent side, include both the integration test that starts sapphire-agent and a small fake ACP server in its place.
+- **wasm**: in CI, use `wasm-bindgen-test` to confirm that binding the same-origin server carries the same experience through. The wasm builds of bevy, bevy_egui and rapier3d are carried through a CI job too.
+- **CI**: build, test and `cargo deny` on Linux (x86_64 and arm64), macOS, Windows. The wasm build and `wasm-bindgen-test` are Linux jobs only.
 
-## 13. リスクと早期検証
+## 13. Risks and Early Verification
 
-実装計画の早い段階で、次の点を試作で確かめる。**この4つはすべて第1マイルストーンの技術のリスク**で、後で来るマイルストーンに持ち越すものではない。
+At an early point of the implementation plan, confirm the following by prototype. **All four of these are technical risks of milestone 1 itself**, and none is carried over into a later milestone.
 
-1. **rapier3d は決定論を誓わない**（`f64`、SIMD、aarch64 の FMA、wasm の浮動小数点）。§12 の判定粒度で一致がどこまで守れるかを確かめる。守れないなら、**サーバーが判定と静止姿勢のキーフレームを運び、クライアントは補間だけする**形に落とす（コマンドと種で同期する形は変えない）。このときは §7 を書き直す。
-2. **bevy + bevy_egui が wasm32-unknown-unknown でビルドが通ること**。bevy の web の backend（`bevy_in_wgpu` と `wgpu-surf` 経由の WebGL2）、bevy_egui、`wgpu` の browser の backend。デスクトップ側は sapphire-agent-gui がすでに通っているので、そっちの型をなぞる。
-3. **同じ bevy の上テーブルと物体が描けること**（headless と web の両方を含む）。
-4. **MCP over ACP が sapphire-agent 側で動くこと**（2026-11-10 の仕様が本番に入っていること）。
+1. **rapier3d does not promise determinism** (`f64`, SIMD, aarch64's FMA, wasm's floating point). Confirm how far agreement holds at §12's adjudication granularity. If it does not hold, drop to the shape of **the server carrying the adjudication and the resting keyframe, and clients only interpolating** (the shape of syncing by command and seed is unchanged). Then §7 is rewritten.
+2. **bevy + bevy_egui build under wasm32-unknown-unknown**. bevy's web backend (`bevy_in_wgpu`, and WebGL2 through `wgpu-surf`), bevy_egui, `wgpu`'s browser backend. The desktop side already goes through in sapphire-agent-gui, so follow that shape.
+3. **a table and bodies can be rendered on that same bevy** (including both headless and web).
+4. **MCP over ACP runs on the sapphire-agent side** (the 2026-11-10 spec is in production).
 
-## 14. 実装の順序（概要）
+## 14. Order of Work (Outline)
 
-詳しくは実装計画で決める。デスクトップ向けに進める間も、ほかのターゲットに戻れる形にする。
+The details are decided in the implementation plan. Keep a shape that lets us return to the other targets while desktop is being advanced.
 
-1. ワークスペースの土台：ライセンス、CI、`cargo deny`、corundum と bevy の crate の組み込み。
-2. §13.1 と §13.2 の試作（物理の決定論、bevy + bevy_egui + rapier3d の wasm）。
-3. `padparadscha-common`：dirs、bevy の plugin、look と言語とテーマ、ACP セッション、チャットパネル、MCP の登録。
-4. `padparadscha-table`：`Table`、コマンド列（§5.1 の FIFO）と `GameEvent` と `seq`、rapier3d、`toss` と `log`。
-5. コイントスの物体と読み出し、`coin-toss.outcome`。
-6. `padparadscha-classics-core`：おまけの1項目として並べる。
-7. `classics/headless`（サーバーバイナリ）と `classics/desktop`（bevy の窓を出し、ゲームサーバーを内蔵する）。
-8. `classics/web`：同一オリジンのサーバーに結んで同じ体験をやり直す。
-9. sapphire-agent を結んだ通しのテストと、§11 の確認。
-10. mobile（iOS）。OS 固有の処理は `#[cfg]` のモジュールに分けるという §2.2 の型を守る間も、デスクトップ向けに進める。iOS の窓は bevy の iOS の窓の経路で動く。corundum-framework-platform がその上に OS の仕組み（dirs、locale、キーボード）を乗せる。このマイルストーンの4つの中で一番後に置くのは、そのため。
+1. Workspace foundation: licenses, CI, `cargo deny`, incorporating the corundum and bevy crates.
+2. The §13.1 and §13.2 prototypes (physics determinism; bevy + bevy_egui + rapier3d wasm).
+3. `padparadscha-common`: dirs; the bevy plugin; look, language and theme; the ACP session; the chat panel; MCP registration.
+4. `padparadscha-table`: `Table`, the command queue (§5.1's FIFO) and `GameEvent` and `seq`, rapier3d, `toss` and `log`.
+5. Coin toss's body and read-out, `coin-toss.outcome`.
+6. `padparadscha-classics-core`: listed as one bonus entry.
+7. `classics/headless` (the server binary) and `classics/desktop` (produces the bevy window, with the game server built in).
+8. `classics/web`: bind the same-origin server and re-enact the same experience.
+9. The end-to-end tests with sapphire-agent bound, and the §11 checks.
+10. mobile (iOS). OS-specific handling goes into `#[cfg]` modules, keeping the §2.2 shape while desktop is advanced. The iOS window runs on bevy's iOS window path. corundum-framework-platform then carries the OS plumbing (dirs, locale, keyboard) on top of that. Which is why it is placed last of this milestone's four.
