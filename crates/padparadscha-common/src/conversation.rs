@@ -84,7 +84,7 @@ impl Event {
 }
 
 /// The one append-only sequence commands and `Event`s accumulate under (§1's terms).
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, bevy::prelude::Resource)]
 pub struct Log(pub Vec<Event>);
 
 impl Log {
