@@ -36,3 +36,19 @@ comparison lines. The wasm side runs the wasm test target (Task 2's spike is wha
 the build closes for `wasm32-unknown-unknown` at all). Compare hashes first, then
 inspect differences: differences that leave the adjudication unchanged are not a mismatch
 under §12.
+
+## Pin form
+
+The rapier3d pin lives in root `[workspace.dependencies]`; the table member reads `rapier3d.workspace = true`.
+
+## Wasm build resolution (Task 3)
+
+The framework fork's `wasm` branch at tag `v0.11.0-wasm` fixes the platform dialog and file-manager gates. An intermediate run of `cargo check --workspace --target wasm32-unknown-unknown` exited 101 with:
+
+```text
+error: Only features sync,macros,io-util,rt,time are supported on wasm.
+ --> tokio-1.54.1/src/lib.rs:516:1
+516 | compile_error!("Only features sync,macros,io-util,rt,time are supported on wasm.");
+```
+
+The root tokio entry now carries the wasm-safe `macros`, `sync`, `time` core; `rt-multi-thread` rides on host-only classics binary dependencies. The same command with `CARGO_NET_GIT_FETCH_WITH_CLI=true` and the local file:// override at the fork tag exited 0. This is build evidence, not a browser determinism run.

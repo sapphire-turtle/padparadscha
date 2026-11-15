@@ -2313,8 +2313,7 @@ dependencies = [
 [[package]]
 name = "corundum-framework"
 version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbf3b8c5d96ad3ed4cefaafcb492d48394a42107cd4099de132072da74b4c7b6"
+source = "git+https://github.com/sapphire-turtle/corundum-framework?tag=v0.11.0-wasm#81a8dfc9fb86350ae6e9d755da1e41c06aa42ca0"
 dependencies = [
  "corundum-framework-gui",
  "corundum-framework-platform",
@@ -2323,8 +2322,7 @@ dependencies = [
 [[package]]
 name = "corundum-framework-gui"
 version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24d8d56ff2f93ecb61faf5b116a2a40e0f19b4363e8cdc343b35e3f6a384fb7b"
+source = "git+https://github.com/sapphire-turtle/corundum-framework?tag=v0.11.0-wasm#81a8dfc9fb86350ae6e9d755da1e41c06aa42ca0"
 dependencies = [
  "corundum-framework-platform",
  "egui",
@@ -2346,8 +2344,7 @@ dependencies = [
 [[package]]
 name = "corundum-framework-platform"
 version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67e2eaeaec01723c010ef43b7d2ee153380cea07cb7652ef446cfed8ebb16d73"
+source = "git+https://github.com/sapphire-turtle/corundum-framework?tag=v0.11.0-wasm#81a8dfc9fb86350ae6e9d755da1e41c06aa42ca0"
 dependencies = [
  "dirs",
  "jni 0.22.4",
@@ -4673,14 +4670,23 @@ version = "0.1.0"
 [[package]]
 name = "padparadscha-classics-desktop"
 version = "0.1.0"
+dependencies = [
+ "tokio",
+]
 
 [[package]]
 name = "padparadscha-classics-headless"
 version = "0.1.0"
+dependencies = [
+ "tokio",
+]
 
 [[package]]
 name = "padparadscha-classics-mobile"
 version = "0.1.0"
+dependencies = [
+ "tokio",
+]
 
 [[package]]
 name = "padparadscha-classics-web"

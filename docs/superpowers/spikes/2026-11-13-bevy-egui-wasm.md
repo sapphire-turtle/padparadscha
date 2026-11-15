@@ -6,9 +6,13 @@ The `wasm32-unknown-unknown` standard library was installed successfully.
 
 ## Verdict (spec §13.2, §13.3)
 
-**The wasm build does not close.** `corundum-framework-gui 0.11.0` fails to compile on `wasm32-unknown-unknown`. Consequently the combined dependency stack does not build, neither member can be claimed to close for wasm, neither browser test ran, and Task 11 (`classics/web`) must be re-planned. The rest of the plan must not pretend this build succeeded.
+**Original spike verdict: the wasm build did not close.** `corundum-framework-gui 0.11.0` failed to compile on `wasm32-unknown-unknown`. Consequently the combined dependency stack did not build and neither browser test ran. The later build resolution is recorded below; browser results remain unmeasured.
 
 This is not a missing-runner-only limitation and it is not something to defer to Task 3 as though compilation had passed. No substitute framework, feature set, dependency patch, or alternative architecture was improvised.
+
+## Pin form
+
+The root `[workspace.dependencies]` pins corundum-framework to the fork git tag `v0.11.0-wasm` with default features disabled; members use `corundum-framework.workspace = true`.
 
 ## Four requested crate/target build results
 
@@ -63,6 +67,28 @@ warning: build failed, waiting for other jobs to finish...
 
 Each `FileDialog` diagnostic points to `rfd 0.17.2/src/lib.rs:139`, where `FileDialog` is gated by `#[cfg(not(target_arch = "wasm32"))]`. The fourth error is independent of those dialog types: wasm32 defines none of the target-specific `program` bindings in `open_in_file_manager` before the unconditional use.
 
+### Resolution (Task 3)
+
+The fork branch `wasm`, tag `v0.11.0-wasm` (commit `81a8dfc9fb86350ae6e9d755da1e41c06aa42ca0`), closes the original four platform leaks: `pick_folder`, `FilePicker::pick_file` / `pick_files`, the `dialog` constructor, and `open_in_file_manager` now gate wasm to their no-dialog / no-program arms. `DESKTOP` also excludes wasm. Padparadscha is re-pinned to this tag. The whole-workspace wasm build now closes:
+
+```text
+CARGO_NET_GIT_FETCH_WITH_CLI=true cargo check --workspace --target wasm32-unknown-unknown
+Finished `dev` profile [unoptimized + debuginfo] target(s)
+exit 0
+```
+
+The command used the local `file://` git override at the same tag; the committed pin uses HTTPS and requires the tag to be pushed. An intermediate whole-workspace run after the fork fix exited 101:
+
+```text
+cargo check --workspace --target wasm32-unknown-unknown
+error: Only features sync,macros,io-util,rt,time are supported on wasm.
+ --> tokio-1.54.1/src/lib.rs:516:1
+516 | compile_error!("Only features sync,macros,io-util,rt,time are supported on wasm.");
+exit 101
+```
+
+The root tokio entry now carries only the wasm-safe `macros`, `sync`, and `time` core; `rt-multi-thread` rides on the host-only classics binary dependencies. Browser tests have not been run.
+
 ## Widget and mesh-handle runs
 
 Host, after adapting the spike to bevy_egui 0.43.1 / egui 0.37.0 APIs:
@@ -83,7 +109,7 @@ padparadscha-table:
 
 The names ending `in_a_browser` above are shared function names, **not evidence of a browser run**. The explicit `#[test]` alongside each `#[wasm_bindgen_test]` makes wasm-bindgen-test 0.3.80's non-wasm function body execute in the ordinary host harness as well. Host table mesh assertions found two mesh handles; host widget assertions ran a labelled egui area through `EguiPrimaryContextPass`.
 
-On actual `wasm32-unknown-unknown`, **no widget-paint result, no mesh-handle result, and no browser result exists**: the dependency check fails first. Task 3's CI `wasm` job cannot repair this by supplying a runner; it would reproduce the same upstream compile blocker unless the Task 11 re-planning changes the relevant supported stack.
+At the original spike, **no wasm widget-paint result, mesh-handle result, or browser result existed** because the dependency check failed first. The build is now fixed as recorded above; browser execution has not been repeated.
 
 Browser tooling was nevertheless checked locally. Firefox 159.0 is installed. `wasm-bindgen`, `wasm-bindgen-test-runner`, `geckodriver`, `chromedriver`, and Chrome/Chromium executables were not found; `CHROMEDRIVER`, `GECKODRIVER`, and `WASM_BINDGEN_TEST_RUNNER` are unset. Browser execution is therefore unavailable locally for this independent reason too.
 
@@ -96,7 +122,7 @@ cargo tree -p padparadscha-common --edges normal --target wasm32-unknown-unknown
 0
 ```
 
-This zero-eframe graph result does **not** mean the graph compiles.
+This zero-eframe graph result alone did not establish compilation; the later workspace check above does.
 
 ```text
 cargo tree -p padparadscha-common -e normal -i egui

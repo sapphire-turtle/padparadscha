@@ -72,6 +72,9 @@ unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = [
+    # The framework fork, on its wasm branch, until the v0.11.0-line platform dialogs
+    # and open_in_file_manager wasm gate leaks are fixed upstream and released.
+    "https://github.com/sapphire-turtle/corundum-framework",
     # The fork, on its egui-0.37 branch, until upstream releases egui 0.37 support (spec 2.2).
     "https://github.com/sapphire-turtle/bevy_egui",
 ]
