@@ -1,14 +1,8 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! The app's foundation (spec §4): the look, settings and API-version handshake.
+//! Task 9 adds the ACP session and chat panel; this crate is never a window or binary.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+mod app;
+mod settings;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use app::{API_VERSION, CommonPlugin, LookStore, VersionMismatch, check_api_version};
+pub use settings::{ServerMode, Settings};

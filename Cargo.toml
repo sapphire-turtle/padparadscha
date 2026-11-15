@@ -29,3 +29,12 @@ tokio = { version = "1.54.1", default-features = false, features = ["macros", "s
 # Drives the two spike files' browser runs, in the `wasm` job (spec §12).
 wasm-bindgen-test = "0.3"
 padparadscha-common = { path = "crates/padparadscha-common" }
+# Backs the connection to the agent at GET /acp: v1 dispatch, schema and Lines transport.
+# v2 stays off to pin ACP v1 (spec §2.3); Task 9 binds the session.
+agent-client-protocol = { version = "5.2.0", features = ["unstable_mcp_over_acp"] }
+toml = "1"
+anyhow = "1"
+tracing = "0.1"
+# Isolated settings directories in tests (spec §4.1).
+tempfile = "3"
+thiserror = "2"
