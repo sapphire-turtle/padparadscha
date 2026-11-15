@@ -17,6 +17,10 @@ tokio.workspace = true
 
 # Settings and the clear handshake refusal (spec §4.1, §10); the ACP session binds in Task 9.
 serde.workspace = true
+serde_json.workspace = true
+fixed.workspace = true
+rand_xoshiro.workspace = true
+rand_core.workspace = true
 agent-client-protocol.workspace = true
 toml.workspace = true
 anyhow.workspace = true
