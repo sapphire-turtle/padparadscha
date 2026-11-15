@@ -4,3 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# Every entry reads only `.workspace = true` (§2.3); the pins live in the root table below.
+rapier3d.workspace = true         # rigid bodies on the table, in f64 — the physics types are rapier3d's own Vector3<f64> (§5.2)
+fixed.workspace = true            # the read-out's fixed point alone (§7.1); nothing here touches the simulation side
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
