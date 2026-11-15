@@ -5,10 +5,24 @@ edition = "2024"
 
 [dependencies]
 # Every entry reads only `.workspace = true` (§2.3); the pins live in the root table below.
+bevy.workspace = true
+padparadscha-common.workspace = true      # the engine CONSUMES common's types (Task 5's), never re-declares them
+corundum-framework.workspace = true      # locale + i18n: §5.3's conversion layer renders rows through them
 rapier3d.workspace = true         # rigid bodies on the table, in f64 — the physics types are rapier3d's own Vector3<f64> (§5.2)
 fixed.workspace = true            # the read-out's fixed point alone (§7.1); nothing here touches the simulation side
 serde.workspace = true
 serde_json.workspace = true
+tokio.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# The web backend and WebGL2, as features added to the same root entry — never a second version.
+bevy = { workspace = true, features = ["web", "webgl2"] }
 
 [dev-dependencies]
 serde_json.workspace = true
+# This crate's own spike test runs in a browser too, in the `wasm` job (spec §12).
+wasm-bindgen-test.workspace = true
+
+[features]
+default = ["render"]
+render = ["bevy/bevy_render", "bevy/bevy_core_pipeline", "bevy/bevy_picking"]

@@ -4,3 +4,19 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# The axis of the whole app (spec §2.3), the framework's look, egui inside bevy, the icons, and
+# the event-loop waker — every version and every default above, in the root table, not here.
+bevy.workspace = true
+corundum-framework.workspace = true
+bevy_egui.workspace = true
+egui_extras.workspace = true
+tokio.workspace = true
+
+[features]
+# Default on; the headless client (Task 12) reads this crate default-features = false and still
+# links without a window (the plugin itself, not the window, is what the crate asks for).
+default = ["render"]
+render = ["bevy/bevy_render", "bevy/bevy_core_pipeline", "bevy/bevy_picking"]
+
+[dev-dependencies]
+wasm-bindgen-test.workspace = true
