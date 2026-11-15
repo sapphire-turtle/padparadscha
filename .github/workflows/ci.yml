@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  ci:
+    uses: sapphire-turtle/.github/.github/workflows/rust-ci.yml@v1
+    with:
+      # bevy needs X11, Wayland and xkbcommon; bevy_winit talks to udev for hot-plug
+      # events. The spike's tests construct a bevy App, so the runner needs them.
+      linux-packages: >-
+        pkg-config libudev-dev libwayland-dev libxkbcommon-dev libx11-dev
+        libxi-dev libxcursor-dev libxrandr-dev
+  wasm:
+    name: wasm32 build and wasm-bindgen-test (Linux only, spec §12)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup target add wasm32-unknown-unknown
+      - run: rustup component add rust-src
+      - run: cargo install cargo-nextest wasm-bindgen-cli --locked
+      - run: cargo check --workspace --target wasm32-unknown-unknown
+      # The two spikes' tests and Task 5's rng tests, run on wasm32 in the CI: a
+      # wasm run printing a hash different from the x86_64, aarch64 and windows runs is
+      # the §13.1 verdict. wasm-bindgen-test drives them in a browser, no listener bound.
+      - run: >-
+          cargo test -p padparadscha-table -p padparadscha-common --target wasm32-unknown-unknown
+          --target-dir target/wasm32-unknown-unknown --tests -- --nocapture

@@ -2,6 +2,9 @@
 name = "padparadscha-common"
 version = "0.1.0"
 edition = "2024"
+license.workspace = true
+repository.workspace = true
+publish = false
 
 [dependencies]
 # The axis of the whole app (spec §2.3), the framework's look, egui inside bevy, the icons, and

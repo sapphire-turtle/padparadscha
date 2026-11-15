@@ -2,6 +2,9 @@
 name = "padparadscha-table"
 version = "0.1.0"
 edition = "2024"
+license.workspace = true
+repository.workspace = true
+publish = false
 
 [dependencies]
 # Every entry reads only `.workspace = true` (§2.3); the pins live in the root table below.

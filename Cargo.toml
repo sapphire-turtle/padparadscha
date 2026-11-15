@@ -2,6 +2,11 @@
 resolver = "3"
 members = ["classics/crates/padparadscha-classics-core","classics/desktop","classics/headless", "classics/mobile", "classics/web","crates/padparadscha-common","crates/padparadscha-table", "crates/padparadscha-voxel", "sandbox/crates/padparadscha-sandbox-core", "sandbox/desktop", "sandbox/headless", "sandbox/mobile", "sandbox/web"]
 
+[workspace.package]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/sapphire-turtle/padparadscha"
+edition = "2024"
+
 [workspace.dependencies]
 serde = { version = "1.0.154", features = ["derive"] }
 serde_json = "1.0.154"
