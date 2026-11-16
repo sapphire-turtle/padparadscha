@@ -27,10 +27,26 @@ corundum-framework = { git = "https://github.com/sapphire-turtle/corundum-framew
 bevy_egui = { git = "https://github.com/sapphire-turtle/bevy_egui", branch = "egui-0.37" }
 # The Lucide icons turned into textures.
 egui_extras = { version = "0.37", default-features = false, features = ["svg"] }
+# Task 10: the tests' loopback listener needs tokio "net", but tokio 1.54.1 src/lib.rs:479 is a
+# MEASURED compile_error on wasm with net ("Only features sync,macros,io-util,rt,time ..."), and a
+# virtual manifest allows no [target] table — so "net" is added per-member, on the host side only.
 tokio = { version = "1.54.1", default-features = false, features = ["macros", "sync", "time", "rt"] }
 futures-util = { version = "0.3", default-features = false, features = ["std", "sink"] }
+# Task 9 already pinned 0.30.0 (the plan's 0.26 entry is the same connect/handshake API).
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "handshake", "rustls-tls-webpki-roots"] }
 # Drives the two spike files' browser runs, in the `wasm` job (spec §12).
+# Task 10's transport stack, first users here (spec §8/§9).
+# MEASURED (axum 0.8.9 Cargo.toml): no "server" feature exists; `serve` sits behind
+# "tokio"+"http1", and "ws" already pulls "tokio". So the plan's feature list is trimmed to what
+# the gate actually gates, exactly as the plan's own comment intends.
+# "query" too: the /ws ticket arrives as a query parameter (the /rpc extractor was dropped).
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "ws"] }
+# MEASURED: crates.io has no axum-test 0.11 (the plan's pin); the crate was renumbered and
+# 21.1.0 is the newest stable matching axum 0.8 (22.0.0-rc.1 is a prerelease). Same TestServer API.
+# default-features off (pretty-assertions unused); "ws" enables TestWebSocket, which the
+# feed test uses instead of binding a second client by hand.
+axum-test = { version = "21.1", default-features = false, features = ["ws"] }
+uuid = { version = "1.11", features = ["v4"] }
 wasm-bindgen-test = "0.3"
 padparadscha-common = { path = "crates/padparadscha-common" }
 # Backs the connection to the agent at GET /acp: v1 dispatch, schema and Lines transport.

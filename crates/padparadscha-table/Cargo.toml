@@ -22,10 +22,22 @@ tokio.workspace = true
 # The web backend and WebGL2, as features added to the same root entry — never a second version.
 bevy = { workspace = true, features = ["web", "webgl2"] }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# The transport stack (Task 10, spec §8/§9): host-only, so wasm reads the crate without it (§13.2).
+axum.workspace = true
+futures-util.workspace = true
+uuid.workspace = true
+# "net" here, not on the workspace entry: tokio refuses "net" on wasm (measured, see root note).
+tokio = { workspace = true, features = ["net"] }
+
 [dev-dependencies]
 serde_json.workspace = true
 # This crate's own spike test runs in a browser too, in the `wasm` job (spec §12).
 wasm-bindgen-test.workspace = true
+# Task 10's api tests: TestServer drives the Router without a listener; tokio-tungstenite is
+# the test-only WebSocket client for the one test that binds a loopback listener.
+axum-test.workspace = true
+tokio-tungstenite.workspace = true
 
 [features]
 default = ["render"]
