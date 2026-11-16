@@ -6,7 +6,8 @@ use padparadscha_table::{CoinToss, Outcome, Table};
 
 const SEED: Seed = Seed(0x5EED_5EED_5EED_5EED);
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 #[expect(
     clippy::approx_constant,
     reason = "the measured edge fixture is deliberately approximate"
@@ -30,7 +31,8 @@ fn the_three_cases_split_exactly_as_the_read_out_says() {
     );
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn a_re_toss_makes_no_new_row_and_the_attempt_number_carries_it() {
     let toss = CoinToss {
         table: Table::default(),
@@ -56,7 +58,8 @@ fn a_re_toss_makes_no_new_row_and_the_attempt_number_carries_it() {
     assert_eq!(outcome, toss.toss(SEED, seq));
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn an_edge_and_a_queued_command_do_not_block_the_queue() {
     // §10: other peers' commands pass through as-is, queued commands stay queued, and what is
     // decided is only "the user tossed once more and an outcome came out".

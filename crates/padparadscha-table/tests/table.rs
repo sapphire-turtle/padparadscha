@@ -4,7 +4,8 @@
 use padparadscha_common::{Actor, Command, Event, Log, Queue, Seed};
 use padparadscha_table::{Body, Session, Table};
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn a_table_is_its_dimensions_edge_and_wall_and_its_normal_is_what_the_angle_is_taken_against() {
     let table = Table::default();
     assert_eq!(
@@ -17,7 +18,8 @@ fn a_table_is_its_dimensions_edge_and_wall_and_its_normal_is_what_the_angle_is_t
     assert_eq!(table.wall_m, 0.02);
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn one_session_makes_one_seed_and_holds_the_bodies_it_names() {
     let session = Session::new("s-1", Seed(0x5EED_5EED_5EED_5EED));
     assert_eq!(
@@ -33,7 +35,8 @@ fn one_session_makes_one_seed_and_holds_the_bodies_it_names() {
     assert_eq!(app.world().resource::<Session>().seed, seed);
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn the_engine_holds_common_types_as_its_own_state_without_redeclaring_them() {
     // §5.4: the queue and the log are not re-exported from here, because they are common's types.
     let mut app = bevy::prelude::App::default();
@@ -45,7 +48,8 @@ fn the_engine_holds_common_types_as_its_own_state_without_redeclaring_them() {
     );
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn queued_commands_and_events_share_the_same_seq() {
     let mut queue = Queue::default();
     let mut log = Log::default();

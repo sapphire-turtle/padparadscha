@@ -47,8 +47,8 @@ async fn rpc_post(
     answer(&req, answered)
 }
 
-/// The snapshot, and the seq the feed continues from: `from_seq` is the next seq the client has not
-/// received; with nothing passed, the whole log, from nothing (spec §7.3).
+/// The snapshot, and the seq the feed continues from: `from_seq` is the last received seq
+/// (exclusive); with nothing passed, the whole log, from nothing (spec §7.3).
 fn join(state: &Arc<State>, params: Value) -> Value {
     let from = params.get("from_seq").and_then(Value::as_u64).map(Seq);
     let snapshot = {
@@ -62,7 +62,7 @@ fn join(state: &Arc<State>, params: Value) -> Value {
         .rows
         .last()
         .map(|row| Seq(row.seq.0 + 1))
-        .or(from)
+        .or_else(|| from.map(|seq| Seq(seq.0.saturating_add(1))))
         .unwrap_or(Seq(0));
     *state.feed_from.lock().unwrap() = Some(feed_from);
     serde_json::json!({

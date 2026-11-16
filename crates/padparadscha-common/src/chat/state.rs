@@ -30,7 +30,12 @@ impl ChatState {
 
     pub fn push_line(&mut self, event: &Event, text: impl Into<String>) {
         self.0.push(ChatEntry {
-            role: ChatRole::System,
+            // Task 13 ruling: the row carries its issuing actor, not a synthetic system role.
+            role: match event.args["who"].as_str() {
+                Some("User") => ChatRole::User,
+                Some("Agent") => ChatRole::Agent,
+                _ => ChatRole::System,
+            },
             text: text.into(),
             seq: Some(event.seq),
         });

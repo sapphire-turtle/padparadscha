@@ -4,13 +4,14 @@
 
 use bevy::prelude::*;
 use padparadscha_table::{SpikeCoin, SpikeTable, TablePlugin};
-use wasm_bindgen_test::*;
+use wasm_bindgen_test::wasm_bindgen_test_configure;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
 /// The table's own dimensions are not what this asks; that it is a `Resource` bevy can hold, with
 /// the body's own dimensions of §6.1 on it.
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn a_table_with_a_body_constructs_on_this_target() {
     let mut app = App::new();
     app.insert_resource(SpikeTable {
@@ -33,8 +34,8 @@ fn a_table_with_a_body_constructs_on_this_target() {
 
 // The browser run, on the web backend + WebGL2 (§13.2): the surface and the coin exist there as mesh
 // handles with an id() each. Only a run says that; a cargo check only says the crate builds.
-#[test]
-#[wasm_bindgen_test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn the_table_and_the_coin_are_mesh_handles_in_a_browser() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, TablePlugin));

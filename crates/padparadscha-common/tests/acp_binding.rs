@@ -38,7 +38,7 @@ async fn client_initializes_one_session_and_sends_user_prompt() {
     let conn = receive_ready.await.unwrap().unwrap();
     assert_eq!(conn.id, "one");
     let prompt = tokio::spawn(async move {
-        conn.user_message("hello", &json!({"outcome":"heads"}))
+        conn.user_message_reply("hello", &json!({"outcome":"heads"}))
             .await
     });
     let request = receive(&mut peer).await;
@@ -51,5 +51,9 @@ async fn client_initializes_one_session_and_sends_user_prompt() {
         json!({"jsonrpc":"2.0","id":request["id"],"result":{"stopReason":"end_turn"}}),
     );
     assert_eq!(prompt.await.unwrap().unwrap(), "");
-    driver.await.unwrap().unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), driver)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
 }

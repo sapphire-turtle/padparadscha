@@ -6,7 +6,6 @@ use crate::api::State as Engine;
 use axum::extract::{Query, State, WebSocketUpgrade};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use futures_util::SinkExt;
 use padparadscha_common::Seq;
 use std::sync::Arc;
 
@@ -42,14 +41,18 @@ pub async fn ws_upgrade(
 // MEASURED (axum 0.8.9): the socket is `axum::extract::ws::WebSocket` and frames are
 // `axum::extract::ws::Message` — the plan's `axum::extract::private::*` paths do not exist.
 async fn feed(socket: axum::extract::ws::WebSocket, state: Arc<Engine>) {
-    use futures_util::StreamExt;
-    let (mut sink, mut stream) = socket.split();
+    let mut sink = socket;
     let mut from = state.feed_from.lock().unwrap().unwrap_or(Seq(0));
     loop {
-        let notified = state.appended.notified();
-        tokio::pin!(notified);
-        notified.as_mut().enable();
         let rows = state.log.lock().unwrap().since(from);
+        // Rows appended between joining and this drain still belong to the finite replay.
+        // No idle notification is needed: when no row is available this replay is drained.
+
+        // Task 13 ruling: replay is finite; rejoin with a new ticket for later appends.
+        if rows.is_empty() {
+            let _ = sink.send(axum::extract::ws::Message::Close(None)).await;
+            return;
+        }
         for row in rows {
             let frame = serde_json::to_string(&row).unwrap();
             if sink
@@ -60,12 +63,6 @@ async fn feed(socket: axum::extract::ws::WebSocket, state: Arc<Engine>) {
                 return;
             }
             from = Seq(row.seq.0 + 1);
-        }
-        // The stream stays open for appends (and the utterances and replies riding alongside): the socket
-        // closing is the client's drop, and §7.3's contract is what the reconnect brings back.
-        tokio::select! {
-            _ = &mut notified => {},
-            incoming = stream.next() => if incoming.is_none() { break; },
         }
     }
 }

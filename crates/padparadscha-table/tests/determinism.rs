@@ -232,7 +232,8 @@ fn cases() -> Vec<(&'static str, SpawnPose)> {
     ]
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn resting_pose_hash_per_case_is_the_one_the_other_targets_must_reach() {
     for (name, spawn_pose) in cases() {
         let (pose, hash) = resting_pose_case(name, spawn_pose);
@@ -248,7 +249,8 @@ fn resting_pose_hash_per_case_is_the_one_the_other_targets_must_reach() {
     }
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn three_named_cases_lands_on_the_side_their_names_say_and_the_fourth_rests_on_the_boundary() {
     // §6.4 read back off the world's own lines: under 45° is that face (the printed cos, over
     // the printed cos(45°), is the same question); 45° or more stands on the edge, cannot be
@@ -292,7 +294,8 @@ fn cos_of(pose: &str) -> f64 {
         .expect("the printed cos parses")
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn under_45_is_that_face_and_45_or_more_is_not_adjudicable() {
     // §6.4: under 45° is that face (cos over cos(45°) is the same question); 45° or
     // more stands on the edge, cannot be adjudicated, and re-tosses on its own. The world above

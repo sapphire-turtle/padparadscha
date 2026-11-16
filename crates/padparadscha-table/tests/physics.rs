@@ -3,7 +3,8 @@
 
 use padparadscha_table::{Body, Coin, Keyframe, Launch, Table, simulate};
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn the_coin_is_a_disc_with_thickness_two_faces_and_an_edge() {
     // §6.1's dimensions, SI f64 values.
     assert_eq!(Coin::COIN.diameter_m, 0.024);
@@ -11,7 +12,8 @@ fn the_coin_is_a_disc_with_thickness_two_faces_and_an_edge() {
     assert_eq!(Coin::COIN.mass_kg, 0.005);
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn the_engine_carries_simulate_alone_and_rest_is_position_and_orientation() {
     // The one condition for calling rest: "the body came to rest" (spec 7.2). Every peer runs
     // the same thing on its own side from the same command log and seed (spec 5.2).
@@ -33,7 +35,8 @@ fn the_engine_carries_simulate_alone_and_rest_is_position_and_orientation() {
     assert!(position[1] > 0.0, "on top of the table");
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn launch_orientation_is_read_out_after_rest_and_repeated_runs_agree() {
     let face_up = Launch {
         position: [0.0, 0.05, 0.0],
@@ -59,7 +62,8 @@ fn launch_orientation_is_read_out_after_rest_and_repeated_runs_agree() {
     );
 }
 
-#[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn surface_and_walls_bound_a_moving_coin() {
     let table = Table {
         half_width_m: 0.08,

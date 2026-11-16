@@ -64,7 +64,8 @@ impl Join {
         from_seq: Option<Seq>,
     ) -> Self {
         let rows = match from_seq {
-            Some(from) => log.since(from),
+            // Task 13: from_seq is the last received row, exclusively.
+            Some(from) => log.0.iter().filter(|row| row.seq > from).cloned().collect(),
             None => log
                 .0
                 .last()

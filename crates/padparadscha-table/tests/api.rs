@@ -1,3 +1,4 @@
+#![cfg(not(target_arch = "wasm32"))]
 //! §9 and §12's checks: the join snapshot and the feed's first row continue one from the other; a
 //! client that dropped passes `from_seq` and gets each of the same rows exactly once; one command
 //! leaves exactly one row carrying the same seq; the ticket is usable exactly once.
@@ -107,7 +108,12 @@ async fn a_client_that_dropped_passes_from_seq_and_gets_each_missing_row_exactly
     .await;
     let had = snapshot["result"]["rows"].as_array().unwrap().len();
     // The rows it had, plus the ones the feed carries from the continuation, are the whole log once.
-    let feed = rpc(&app, "session.join", serde_json::json!({ "from_seq": had })).await;
+    let feed = rpc(
+        &app,
+        "session.join",
+        serde_json::json!({ "from_seq": had - 1 }),
+    )
+    .await;
     let missing = feed["result"]["rows"].as_array().unwrap();
     assert_eq!(
         missing.len(),
@@ -134,7 +140,7 @@ async fn one_game_command_leaves_exactly_one_row_and_answers_with_its_seq() {
         r["result"]["seq"], 3,
         "the queue counter's next, and the row it produces carries the same one"
     );
-    let rows = rpc(&app, "session.join", serde_json::json!({ "from_seq": 3 })).await;
+    let rows = rpc(&app, "session.join", serde_json::json!({ "from_seq": 2 })).await;
     assert_eq!(
         rows["result"]["rows"].as_array().unwrap().len(),
         1,
@@ -220,6 +226,29 @@ async fn empty_snapshot_feed_continues_from_zero() {
 }
 
 #[tokio::test]
+async fn the_feed_closes_when_the_replay_is_drained() {
+    // Task 13 ruling: a WebSocket feed is a finite gapless replay, not an idle forever-channel.
+    // The prior per-frame flush assertion at line 223 (0) still pins the first row.
+    let state = state();
+    let ticket = state.tickets.lock().unwrap().issue("s-1", Instant::now());
+    let app = TestServer::new_with_config(
+        routes(state),
+        axum_test::TestServerConfig {
+            transport: Some(axum_test::Transport::HttpRandomPort),
+            ..Default::default()
+        },
+    );
+    let mut socket = app
+        .get_websocket(&format!("/ws?ticket={ticket}"))
+        .await
+        .into_websocket()
+        .await;
+    for _ in 0..3 {
+        let _ = socket.receive_text().await;
+    }
+}
+
+#[tokio::test]
 async fn a_new_row_is_pushed_to_an_idle_feed_without_client_traffic() {
     use futures_util::StreamExt;
     let server = padparadscha_table::api::serve_sim(
@@ -248,13 +277,8 @@ async fn a_new_row_is_pushed_to_an_idle_feed_without_client_traffic() {
         .json()
         .await
         .unwrap();
-    let (mut socket, _) = tokio_tungstenite::connect_async(format!(
-        "ws://{}/ws?ticket={}",
-        server.addr(),
-        ticket["result"]["ticket"].as_str().unwrap()
-    ))
-    .await
-    .unwrap();
+    // Task 13 ruling: the feed closes when drained, so append between the snapshot and
+    // the replay's first drain, not after that finite replay has already closed.
     let result: serde_json::Value = rpc(
         "game.command",
         serde_json::json!({"who":"User", "kind":"toss"}),
@@ -262,6 +286,13 @@ async fn a_new_row_is_pushed_to_an_idle_feed_without_client_traffic() {
     .await
     .unwrap()
     .json()
+    .await
+    .unwrap();
+    let (mut socket, _) = tokio_tungstenite::connect_async(format!(
+        "ws://{}/ws?ticket={}",
+        server.addr(),
+        ticket["result"]["ticket"].as_str().unwrap()
+    ))
     .await
     .unwrap();
     let frame = tokio::time::timeout(Duration::from_secs(5), socket.next())

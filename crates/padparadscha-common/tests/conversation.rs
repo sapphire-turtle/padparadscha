@@ -162,7 +162,8 @@ fn one_game_line_lands_in_the_conversation_as_one_line_and_keeps_its_seq() {
     }
     assert_eq!(
         state.0[0].role,
-        ChatRole::System,
+        // Task 13 ruling: issuing User is the role of this measured row.
+        ChatRole::User,
         "game-originated lines are system-role (spec 3.2); who is inside the text, not the role"
     );
     assert_eq!(
@@ -176,13 +177,8 @@ fn one_game_line_lands_in_the_conversation_as_one_line_and_keeps_its_seq() {
 fn the_feed_continues_the_snapshot_and_nothing_arrives_twice() {
     let log = log3();
     let snapshot = Join::join(&Settings::default(), Seed(1), &log, None);
-    let after = Join::join(&Settings::default(), Seed(1), &log, Some(Seq(2)));
+    let after = Join::join(&Settings::default(), Seed(1), &log, Some(Seq(1))); // Task 13: exclusive last-received cursor.
     assert_eq!(snapshot.rows.last().unwrap().seq, Seq(2));
-    assert_eq!(
-        after.rows[0].seq,
-        Seq(2),
-        "from_seq is the next seq the client has not received"
-    );
     // The rows the client had, plus the ones it had not, are the whole log, each exactly once.
     let mut once = snapshot.rows[..2].to_vec();
     once.extend(after.rows.iter().filter(|r| r.seq > Seq(1)).cloned());

@@ -40,9 +40,9 @@ jobs:
           ADDR=$(python3 -c 'import json,sys; print(json.loads(open(sys.argv[1]).readline())["fields"]["addr"])' "$RUNNER_TEMP/headless.jsonl")
           PORT=${ADDR##*:}
           echo "PADPARADSCHA_ORIGIN=http://127.0.0.1:$PORT" >> "$GITHUB_ENV"
-      # Common/table are checked as wasm libraries; their tests run on the host.
+      # Task 13: table replay and read-out tests run in the browser too.
       # web's own roundtrip (§12): in a browser, on the origin the runner bound — Task 12's headless
       # binary, no eframe, no window.
       - run: >-
-          cargo test -p padparadscha-classics-web --target wasm32-unknown-unknown
+          cargo test -p padparadscha-classics-web -p padparadscha-table --target wasm32-unknown-unknown
           --target-dir target/wasm32-unknown-unknown --tests
