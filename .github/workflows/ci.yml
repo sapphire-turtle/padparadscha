@@ -21,8 +21,12 @@ jobs:
       - run: rustup target add wasm32-unknown-unknown
       - run: rustup component add rust-src
       - run: cargo install cargo-nextest wasm-bindgen-cli --locked
-      - uses: browser-actions/setup-chrome@v1
+      # MEASURED: unpinned, the action installed chromedriver 160 against the runner's chrome 157
+      # ("session not created: this version of ChromeDriver only supports Chrome version 160"). Pin one
+      # browser for the runner image and install the driver matched to it.
+      - uses: browser-actions/setup-chrome@v2
         with:
+          chrome-version: 157
           install-chromedriver: true
       - run: echo "CHROMEDRIVER=$(which chromedriver)" >> "$GITHUB_ENV"
       - run: echo "WASM_BINDGEN_TEST_TIMEOUT=120" >> "$GITHUB_ENV"

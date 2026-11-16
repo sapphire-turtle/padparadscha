@@ -75,4 +75,7 @@ tracing-subscriber = { version = "0.3", features = ["json"] }
 reqwest = { version = "0.12", default-features = false, features = ["json"] }
 
 agent-client-protocol-rmcp = { version = "5.2.0", default-features = false, features = ["rmcp_3", "unstable_mcp_over_acp"] }
-rmcp = { version = "3.5", default-features = false }
+# MEASURED: raised from the scheme's 1.6-era pin to 3.10.0 -- the latest 3.x -- because cargo deny
+# fails the advisories the old client carries (RUSTSEC-2026-0457 OAuth SSRF host-string check fixed by 3.7.0,
+# RUSTSEC-2026-0461 unbounded tool schema cache fixed by 3.6.0, and the unbounded response-body buffering).
+rmcp = { version = "3.10.0", default-features = false }

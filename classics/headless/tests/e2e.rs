@@ -1,6 +1,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 //! §12 and §11.1: the actual binary, two clients, exactly one rendered conversation line.
 use futures_util::StreamExt as _;
+
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt as _, AsyncReadExt as _, AsyncWriteExt as _, BufReader};
 use tokio::process::{Child, Command};
@@ -93,11 +94,20 @@ async fn one_command_leaves_one_line_and_the_client_that_joins_after_gets_the_sa
     let (socket, _) = connect_async(format!("ws://{addr}/ws?ticket={ticket}"))
         .await
         .unwrap();
-    // MEASURED tungstenite 0.30 yields the WebSocket Close control frame before EOF.
-    // The feed of application rows excludes that control frame; protocol errors are not hidden.
+    // MEASURED tungstenite 0.30 yields the WebSocket Close control frame before EOF, and on some
+    // runners (observed: windows-latest) the reader then resolves the post-close protocol error
+    // (ResetWithoutClosingHandshake) as an item. The feed of application rows excludes the close
+    // handshake -- both its control frame and the error it leaves the raw reader with.
     let socket = socket.filter_map(|frame| async {
         match frame {
             Ok(tokio_tungstenite::tungstenite::Message::Close(_)) => None,
+            Err(e) => match e {
+                tokio_tungstenite::tungstenite::Error::ConnectionClosed
+                | tokio_tungstenite::tungstenite::Error::Protocol(
+                    tokio_tungstenite::tungstenite::error::ProtocolError::ResetWithoutClosingHandshake,
+                ) => None,
+                _ => Some(Err(e)),
+            },
             other => Some(other),
         }
     });
