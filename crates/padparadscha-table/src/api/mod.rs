@@ -27,6 +27,8 @@ pub struct State {
     /// What `session.join` answered `rows` up to (the next seq the client had), so `GET /ws` knows
     /// where to continue (spec §7.3). `None` until a join: then the feed starts at the log's own first.
     pub feed_from: Mutex<Option<Seq>>,
+    /// Wake feed subscribers as soon as a row is appended.
+    pub appended: tokio::sync::Notify,
 }
 
 impl State {
@@ -50,6 +52,7 @@ impl State {
                 table: crate::Table::default(),
             },
             feed_from: Mutex::new(None),
+            appended: tokio::sync::Notify::new(),
             tickets: Mutex::new(Tickets::default()),
             session: Mutex::new(Session::new(id, seed)),
             log: Mutex::new(log),
@@ -67,4 +70,31 @@ impl State {
     pub fn now(&self) -> Instant {
         Instant::now()
     }
+}
+
+/// A running instance of the shared API and its actual bound address.
+pub struct Server {
+    addr: std::net::SocketAddr,
+    task: tokio::task::JoinHandle<std::io::Result<()>>,
+}
+
+impl Server {
+    /// The actual address, including the OS-selected port when binding port zero.
+    pub fn addr(&self) -> std::net::SocketAddr {
+        self.addr
+    }
+
+    /// Wait for the server to stop.
+    pub async fn wait_for_shutdown(self) -> std::io::Result<()> {
+        self.task.await.map_err(std::io::Error::other)?
+    }
+}
+
+/// Bind the same router all clients use, keeping its one session for its lifetime.
+pub async fn serve_sim(session: Session, bind: std::net::SocketAddr) -> std::io::Result<Server> {
+    let listener = tokio::net::TcpListener::bind(bind).await?;
+    let addr = listener.local_addr()?;
+    let task =
+        tokio::spawn(async move { axum::serve(listener, routes(State::new(session))).await });
+    Ok(Server { addr, task })
 }

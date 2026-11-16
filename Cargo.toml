@@ -67,3 +67,9 @@ url = "2"
 # MEASURED web-sys 0.3.107: set_method takes &str (no HttpMethod); headers() needs Headers.
 web-sys = { version = "0.3.107", features = ["Window", "Location", "Request", "RequestInit", "RequestMode", "Response", "WebSocket", "Headers"] }
 padparadscha-table = { path = "crates/padparadscha-table" }
+
+padparadscha-classics-core = { path = "classics/crates/padparadscha-classics-core" }
+getrandom = "0.4.3"
+tracing-subscriber = { version = "0.3", features = ["json"] }
+
+reqwest = { version = "0.12", default-features = false, features = ["json"] }

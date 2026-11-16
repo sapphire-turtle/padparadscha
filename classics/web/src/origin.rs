@@ -41,7 +41,8 @@ impl Origin {
         let unavailable = |_: JsValue| anyhow::anyhow!("server not found");
         let init = RequestInit::new();
         init.set_method("POST");
-        init.set_mode(RequestMode::SameOrigin);
+        // Browser tests use the separately bound loopback; same-origin production remains valid.
+        init.set_mode(RequestMode::Cors);
         init.set_body(&JsValue::from_str(
             &serde_json::json!({
                 "jsonrpc": "2.0", "id": 1, "method": method, "params": params,

@@ -15,6 +15,7 @@ pub fn routes(state: Arc<State>) -> Router {
     Router::new()
         .route("/rpc", post(rpc_post))
         .route("/ws", axum::routing::get(ws::ws_upgrade))
+        .layer(axum::middleware::from_fn(loopback_cors))
         .with_state(state)
 }
 
@@ -57,13 +58,18 @@ fn join(state: &Arc<State>, params: Value) -> Value {
         // settings-only compatibility `Join::join` (which has no id to give).
         padparadscha_common::Join::for_session(session.id.clone(), session.seed, &log, from)
     };
-    let feed_from = snapshot.rows.last().map(|row| Seq(row.seq.0 + 1)).or(from);
-    *state.feed_from.lock().unwrap() = feed_from;
+    let feed_from = snapshot
+        .rows
+        .last()
+        .map(|row| Seq(row.seq.0 + 1))
+        .or(from)
+        .unwrap_or(Seq(0));
+    *state.feed_from.lock().unwrap() = Some(feed_from);
     serde_json::json!({
         "sessionId": snapshot.id,
         "seed": snapshot.seed,
         "rows": snapshot.rows,
-        "feedFrom": feed_from.map(|s| s.0),
+        "feedFrom": feed_from.0,
     })
 }
 
@@ -86,6 +92,7 @@ fn command(state: &Arc<State>, params: Value) -> Value {
         &outcome.outcome.to_string(),
         outcome.attempt,
     ));
+    state.appended.notify_waiters();
     serde_json::json!({ "seq": seq.0 })
 }
 
@@ -126,4 +133,43 @@ fn mismatch(method: String) -> (StatusCode, String) {
         StatusCode::NOT_FOUND,
         format!("no method {method:?} on this API"),
     )
+}
+
+// Browser test runner binds a different loopback port; only loopback origins may cross ports.
+async fn loopback_cors(
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let origin = request.headers().get(axum::http::header::ORIGIN).cloned();
+    let allowed = origin
+        .as_ref()
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|value| {
+            value
+                .strip_prefix("http://127.0.0.1:")
+                .or_else(|| value.strip_prefix("http://localhost:"))
+                .is_some_and(|port| port.parse::<u16>().is_ok())
+        });
+    let mut response = if allowed && request.method() == axum::http::Method::OPTIONS {
+        StatusCode::NO_CONTENT.into_response()
+    } else {
+        next.run(request).await
+    };
+    if let Some(origin) = origin.filter(|_| allowed) {
+        response
+            .headers_mut()
+            .insert(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+        response.headers_mut().insert(
+            axum::http::header::ACCESS_CONTROL_ALLOW_METHODS,
+            "POST, OPTIONS".parse().unwrap(),
+        );
+        response.headers_mut().insert(
+            axum::http::header::ACCESS_CONTROL_ALLOW_HEADERS,
+            "content-type, authorization".parse().unwrap(),
+        );
+        response
+            .headers_mut()
+            .insert(axum::http::header::VARY, "origin".parse().unwrap());
+    }
+    response
 }

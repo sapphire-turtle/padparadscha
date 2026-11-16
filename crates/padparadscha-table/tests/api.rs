@@ -201,3 +201,74 @@ async fn the_feed_streams_from_the_seq_the_snapshot_ended_at() {
         "with no join before it, the feed starts at the log's own first seq (spec 9)"
     );
 }
+
+#[tokio::test]
+async fn empty_snapshot_feed_continues_from_zero() {
+    let app = TestServer::new(routes(State::new(padparadscha_table::Session::new(
+        "fresh", SEED,
+    ))));
+    let result = rpc(
+        &app,
+        "session.join",
+        serde_json::json!({ "from_seq": null }),
+    )
+    .await;
+    assert_eq!(
+        result["result"]["feedFrom"], 0,
+        "an empty log's feed continues from zero (§7.3)"
+    );
+}
+
+#[tokio::test]
+async fn a_new_row_is_pushed_to_an_idle_feed_without_client_traffic() {
+    use futures_util::StreamExt;
+    let server = padparadscha_table::api::serve_sim(
+        padparadscha_table::Session::new("fresh", SEED),
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .await
+    .unwrap();
+    let client = reqwest::Client::new();
+    let rpc = |method: &str, params: serde_json::Value| {
+        client
+            .post(format!("http://{}/rpc", server.addr()))
+            .json(&serde_json::json!({"jsonrpc":"2.0", "id":1, "method":method, "params":params}))
+            .send()
+    };
+    let join: serde_json::Value = rpc("session.join", serde_json::json!({"from_seq":null}))
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(join["result"]["feedFrom"], 0);
+    let ticket: serde_json::Value = rpc("session.ticket", serde_json::json!({}))
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let (mut socket, _) = tokio_tungstenite::connect_async(format!(
+        "ws://{}/ws?ticket={}",
+        server.addr(),
+        ticket["result"]["ticket"].as_str().unwrap()
+    ))
+    .await
+    .unwrap();
+    let result: serde_json::Value = rpc(
+        "game.command",
+        serde_json::json!({"who":"User", "kind":"toss"}),
+    )
+    .await
+    .unwrap()
+    .json()
+    .await
+    .unwrap();
+    let frame = tokio::time::timeout(Duration::from_secs(5), socket.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    let row: serde_json::Value = serde_json::from_str(frame.to_text().unwrap()).unwrap();
+    assert_eq!(row["seq"], result["result"]["seq"]);
+}

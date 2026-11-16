@@ -25,4 +25,5 @@ tracing.workspace = true
 bevy = { workspace = true, features = ["web", "webgl2"] }
 
 [dev-dependencies]
+corundum-framework.workspace = true
 wasm-bindgen-test.workspace = true

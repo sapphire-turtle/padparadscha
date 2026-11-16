@@ -43,12 +43,16 @@ async fn an_origin_that_cannot_be_bound_is_one_line_and_requests_stay_retriable(
 }
 
 #[wasm_bindgen_test]
-#[ignore = "Task 12 supplies the same-origin headless server"]
 async fn the_same_origin_server_carries_the_same_experience_through() {
     // server.info → session.join → game.command → one conversation line, in the viewer's language.
     // Binds the server on this runner's origin, which is what the `wasm` job's own step does (see the
     // task's Step 5): the origin below answers with Task 10's Router.
-    let o = Origin::same_origin();
+    // MEASURED: wasm-bindgen serves the page on its own port; tests use the real binary.
+    let o = Origin(
+        option_env!("PADPARADSCHA_ORIGIN")
+            .unwrap_or("http://127.0.0.1:1")
+            .to_owned(),
+    );
     let info = o
         .rpc(
             "server.info",
@@ -73,6 +77,8 @@ async fn the_same_origin_server_carries_the_same_experience_through() {
     let line = {
         // The one egui, reached through bevy_egui's re-export (spec 2.2).
         let ctx = bevy_egui::egui::Context::default();
+        // The isolated test context has not run CommonPlugin; register its actual translations.
+        corundum_framework::gui::i18n::register(&ctx, padparadscha_common::TRANSLATIONS);
         let rows = o
             .rpc(
                 "session.join",
@@ -103,11 +109,15 @@ async fn the_same_origin_server_carries_the_same_experience_through() {
 }
 
 #[wasm_bindgen_test]
-#[ignore = "Task 12 supplies the same-origin headless server"]
 async fn the_feed_arrives_on_the_sockets_own_frame_and_carries_the_seq() {
     // GET /ws carries `ticket` and nothing else (§9.1): the socket is opened on the same URL the page
     // came from, and its first frame continues the snapshot the join answered with (spec 7.3).
-    let o = Origin::same_origin();
+    // MEASURED: wasm-bindgen serves the page on its own port; tests use the real binary.
+    let o = Origin(
+        option_env!("PADPARADSCHA_ORIGIN")
+            .unwrap_or("http://127.0.0.1:1")
+            .to_owned(),
+    );
     let ticket = o
         .rpc("session.ticket", serde_json::json!({}))
         .await
@@ -116,18 +126,27 @@ async fn the_feed_arrives_on_the_sockets_own_frame_and_carries_the_seq() {
         .unwrap()
         .to_string();
     let socket = o.ws(&ticket);
+    // Firefox normalizes the WebSocket URL scheme to ws://.
     assert_eq!(
         socket.url(),
-        format!("{}/ws?ticket={}", o.0, ticket),
+        format!(
+            "{}/ws?ticket={}",
+            o.0.replacen("http://", "ws://", 1),
+            ticket
+        ),
         "the query is all the handshake carries"
     );
 }
 
 #[wasm_bindgen_test]
-#[ignore = "Task 12 supplies the same-origin headless server"]
 async fn a_second_use_of_the_ticket_closes_the_handshake_with_401_and_a_fresh_one_works() {
     // §10, on the route the browser cannot carry a header on.
-    let o = Origin::same_origin();
+    // MEASURED: wasm-bindgen serves the page on its own port; tests use the real binary.
+    let o = Origin(
+        option_env!("PADPARADSCHA_ORIGIN")
+            .unwrap_or("http://127.0.0.1:1")
+            .to_owned(),
+    );
     let spent = o
         .rpc("session.ticket", serde_json::json!({}))
         .await

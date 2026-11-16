@@ -46,18 +46,26 @@ async fn feed(socket: axum::extract::ws::WebSocket, state: Arc<Engine>) {
     let (mut sink, mut stream) = socket.split();
     let mut from = state.feed_from.lock().unwrap().unwrap_or(Seq(0));
     loop {
+        let notified = state.appended.notified();
+        tokio::pin!(notified);
+        notified.as_mut().enable();
         let rows = state.log.lock().unwrap().since(from);
         for row in rows {
             let frame = serde_json::to_string(&row).unwrap();
-            sink.send(axum::extract::ws::Message::Text(frame.into()))
+            if sink
+                .send(axum::extract::ws::Message::Text(frame.into()))
                 .await
-                .unwrap();
-            from = Seq(from.0 + 1);
+                .is_err()
+            {
+                return;
+            }
+            from = Seq(row.seq.0 + 1);
         }
         // The stream stays open for appends (and the utterances and replies riding alongside): the socket
         // closing is the client's drop, and §7.3's contract is what the reconnect brings back.
-        if stream.next().await.is_none() {
-            break;
+        tokio::select! {
+            _ = &mut notified => {},
+            incoming = stream.next() => if incoming.is_none() { break; },
         }
     }
 }

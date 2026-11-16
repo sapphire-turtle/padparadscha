@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y pkg-config libudev-dev libwayland-dev libxkbcommon-dev libx11-dev libxi-dev libxcursor-dev libxrandr-dev
       - run: rustup target add wasm32-unknown-unknown
       - run: rustup component add rust-src
       - run: cargo install cargo-nextest wasm-bindgen-cli --locked
@@ -27,6 +28,18 @@ jobs:
       - run: echo "WASM_BINDGEN_TEST_TIMEOUT=120" >> "$GITHUB_ENV"
       - run: echo "HEADLESS=1" >> "$GITHUB_ENV"
       - run: cargo check --workspace --target wasm32-unknown-unknown
+      # Build first: cargo run may take longer than the address capture timeout.
+      - run: cargo build -p padparadscha-classics-headless
+      # Capture the real address, because port 0 is chosen by the OS, not a shell variable.
+      - run: |
+          cargo run -p padparadscha-classics-headless -- --bind 127.0.0.1:0 > "$RUNNER_TEMP/headless.jsonl" &
+          for n in $(seq 1 100); do
+            test -s "$RUNNER_TEMP/headless.jsonl" && break
+            sleep 0.2
+          done
+          ADDR=$(python3 -c 'import json,sys; print(json.loads(open(sys.argv[1]).readline())["fields"]["addr"])' "$RUNNER_TEMP/headless.jsonl")
+          PORT=${ADDR##*:}
+          echo "PADPARADSCHA_ORIGIN=http://127.0.0.1:$PORT" >> "$GITHUB_ENV"
       # Common/table are checked as wasm libraries; their tests run on the host.
       # web's own roundtrip (§12): in a browser, on the origin the runner bound — Task 12's headless
       # binary, no eframe, no window.
