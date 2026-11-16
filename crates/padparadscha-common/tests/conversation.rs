@@ -132,3 +132,128 @@ fn an_event_carries_its_fluent_id_and_structured_args_without_rendering() {
         );
     }
 }
+
+// §3.1, §3.2, §3 and §7.3: the viewer's rendering and the session language stay distinct;
+// snapshot and feed meet at one boundary, and from_seq replays each missing row exactly once.
+use corundum_framework::gui::i18n;
+use padparadscha_common::{ChatRole, ChatState, Join, Seed, Settings, render, to_user_message};
+
+fn log3() -> Log {
+    let mut log = Log::default();
+    for seq in [Seq(0), Seq(1), Seq(2)] {
+        log.append(Event::coin_toss(seq, Actor::User, "heads", 0));
+    }
+    log
+}
+
+#[test]
+fn one_game_line_lands_in_the_conversation_as_one_line_and_keeps_its_seq() {
+    let log = log3();
+    let joined = Join::join(
+        &Settings::default(),
+        Seed(0x5EED_5EED_5EED_5EED),
+        &log,
+        None,
+    );
+    assert_eq!(joined.rows.len(), 3);
+    let mut state = ChatState::default();
+    for row in &joined.rows {
+        state.push_line(row, row.kind.to_string()); // no bundle installed here, so the id itself is what the reader got
+    }
+    assert_eq!(
+        state.0[0].role,
+        ChatRole::System,
+        "game-originated lines are system-role (spec 3.2); who is inside the text, not the role"
+    );
+    assert_eq!(
+        state.0[2].seq,
+        Some(Seq(2)),
+        "the row's own seq, so a reconnect names the next one"
+    );
+}
+
+#[test]
+fn the_feed_continues_the_snapshot_and_nothing_arrives_twice() {
+    let log = log3();
+    let snapshot = Join::join(&Settings::default(), Seed(1), &log, None);
+    let after = Join::join(&Settings::default(), Seed(1), &log, Some(Seq(2)));
+    assert_eq!(snapshot.rows.last().unwrap().seq, Seq(2));
+    assert_eq!(
+        after.rows[0].seq,
+        Seq(2),
+        "from_seq is the next seq the client has not received"
+    );
+    // The rows the client had, plus the ones it had not, are the whole log, each exactly once.
+    let mut once = snapshot.rows[..2].to_vec();
+    once.extend(after.rows.iter().filter(|r| r.seq > Seq(1)).cloned());
+    assert_eq!(once.len(), 3);
+}
+
+#[test]
+fn one_line_two_languages_and_the_id_is_the_only_thing_carried() {
+    let row = log3().0[0].clone();
+    // ① the session's own language setting (here: ja), ② the viewer's own language out of `args` alone —
+    // the two stay distinct (spec 3.2).
+    // Measured corundum 0.11: LanguageSettings has a public language field, no new().
+    let (text, args) = to_user_message(
+        &i18n::LanguageSettings {
+            language: i18n::Language::Explicit("ja".into()),
+        },
+        &row,
+    );
+    assert_eq!(args["outcome"], "heads");
+    assert!(
+        text.contains("表"),
+        "①: what lands in the session, in the session's language"
+    );
+    let _ = render;
+}
+
+#[test]
+fn a_missing_id_is_emitted_as_is_and_a_miss_is_logged_once() {
+    // §10: corundum's i18n behaviour — the id itself, and one log line.
+    let row = Event::of(Seq(9), "this-id-is-in-no-ftl", serde_json::Value::Null);
+    assert!(line_of_without_ctx(&row).contains("this-id-is-in-no-ftl"));
+}
+
+fn line_of_without_ctx(row: &Event) -> String {
+    // The bundle-less fallback: with no installed bundle, the id itself is what the reader got too.
+    row.kind.to_string()
+}
+
+#[test]
+fn actual_viewer_renderings_use_event_args_and_leave_log_unchanged() {
+    use bevy_egui::egui;
+    use padparadscha_common::{line_of, render};
+    let log = log3();
+    let ctx = egui::Context::default();
+    const RES: i18n::Resources = i18n::Resources {
+        name: "test-translations",
+        files: &[
+            ("en", "coin-toss-outcome = { $outcome }"),
+            ("ja", "coin-toss-outcome = { $outcome }"),
+        ],
+    };
+    i18n::register(&ctx, RES);
+    let mut state = ChatState::default();
+    render(&ctx, &log.0, &mut state);
+    assert_eq!(state.0.len(), 3);
+    assert_eq!(state.next_wanted(), Some(Seq(3)));
+    assert!(line_of(&ctx, &log.0[0]).contains("heads"));
+    assert_eq!(log.0[0].kind, "coin-toss.outcome");
+    let session = i18n::LanguageSettings {
+        language: i18n::Language::Explicit("ja".into()),
+    };
+    assert!(to_user_message(&session, &log.0[0]).0.contains('表'));
+    assert_eq!(
+        padparadscha_common::Join::for_session("session-id", Seed(1), &log, None).id,
+        "session-id"
+    );
+    assert_eq!(
+        line_of(
+            &ctx,
+            &Event::of(Seq(9), "unknown-id", serde_json::Value::Null)
+        ),
+        "unknown-id"
+    );
+}

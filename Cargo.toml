@@ -27,7 +27,9 @@ corundum-framework = { git = "https://github.com/sapphire-turtle/corundum-framew
 bevy_egui = { git = "https://github.com/sapphire-turtle/bevy_egui", branch = "egui-0.37" }
 # The Lucide icons turned into textures.
 egui_extras = { version = "0.37", default-features = false, features = ["svg"] }
-tokio = { version = "1.54.1", default-features = false, features = ["macros", "sync", "time"] }
+tokio = { version = "1.54.1", default-features = false, features = ["macros", "sync", "time", "rt"] }
+futures-util = { version = "0.3", default-features = false, features = ["std", "sink"] }
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "handshake", "rustls-tls-webpki-roots"] }
 # Drives the two spike files' browser runs, in the `wasm` job (spec §12).
 wasm-bindgen-test = "0.3"
 padparadscha-common = { path = "crates/padparadscha-common" }
