@@ -94,21 +94,14 @@ async fn one_command_leaves_one_line_and_the_client_that_joins_after_gets_the_sa
     let (socket, _) = connect_async(format!("ws://{addr}/ws?ticket={ticket}"))
         .await
         .unwrap();
-    // MEASURED tungstenite 0.30 yields the WebSocket Close control frame before EOF, and on some
-    // runners (observed: windows-latest) the reader then resolves the post-close protocol error
-    // (ResetWithoutClosingHandshake) as an item. The feed of application rows excludes the close
-    // handshake -- both its control frame and the error it leaves the raw reader with.
+    // MEASURED (tungstenite 0.30): the raw reader carries the close handshake as items -- the Close
+    // control frame on every runner, and on windows-latest also the post-close protocol error
+    // it resolves as an item. The feed is application rows, and application rows alone: data frames.
+    // Everything the close handshake leaves in the stream is framing, not content.
     let socket = socket.filter_map(|frame| async {
         match frame {
-            Ok(tokio_tungstenite::tungstenite::Message::Close(_)) => None,
-            Err(e) => match e {
-                tokio_tungstenite::tungstenite::Error::ConnectionClosed
-                | tokio_tungstenite::tungstenite::Error::Protocol(
-                    tokio_tungstenite::tungstenite::error::ProtocolError::ResetWithoutClosingHandshake,
-                ) => None,
-                _ => Some(Err(e)),
-            },
-            other => Some(other),
+            Ok(m) if m.is_text() || m.is_binary() => Some(Ok::<_, ()>(m)),
+            _ => None,
         }
     });
     tokio::pin!(socket);
