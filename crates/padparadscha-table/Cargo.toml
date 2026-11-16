@@ -13,6 +13,7 @@ padparadscha-common.workspace = true      # the engine CONSUMES common's types (
 corundum-framework.workspace = true      # locale + i18n: §5.3's conversion layer renders rows through them
 rapier3d.workspace = true         # rigid bodies on the table, in f64 — the physics types are rapier3d's own Vector3<f64> (§5.2)
 fixed.workspace = true            # the read-out's fixed point alone (§7.1); nothing here touches the simulation side
+rand_core.workspace = true        # the command stream's u64 draws; the named generator stays common's (§7.1)
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

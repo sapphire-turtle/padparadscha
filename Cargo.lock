@@ -5022,6 +5022,7 @@ dependencies = [
  "corundum-framework",
  "fixed",
  "padparadscha-common",
+ "rand_core",
  "rapier3d-f64",
  "serde",
  "serde_json",

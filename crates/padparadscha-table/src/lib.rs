@@ -4,7 +4,9 @@
 mod physics;
 mod session;
 mod table;
+mod toss;
 
 pub use physics::{Coin, Keyframe, Launch, simulate};
 pub use session::{Body, Session};
 pub use table::{SpikeCoin, SpikeTable, Table, TablePlugin};
+pub use toss::{CoinOutcome, CoinToss, Outcome};
