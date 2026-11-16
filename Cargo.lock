@@ -5411,6 +5411,22 @@ dependencies = [
 [[package]]
 name = "padparadscha-classics-web"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bevy",
+ "bevy_egui",
+ "js-sys",
+ "padparadscha-common",
+ "padparadscha-table",
+ "serde",
+ "serde_json",
+ "tracing",
+ "url",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
 
 [[package]]
 name = "padparadscha-common"

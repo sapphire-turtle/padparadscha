@@ -20,10 +20,16 @@ jobs:
       - run: rustup target add wasm32-unknown-unknown
       - run: rustup component add rust-src
       - run: cargo install cargo-nextest wasm-bindgen-cli --locked
+      - uses: browser-actions/setup-chrome@v1
+        with:
+          install-chromedriver: true
+      - run: echo "CHROMEDRIVER=$(which chromedriver)" >> "$GITHUB_ENV"
+      - run: echo "WASM_BINDGEN_TEST_TIMEOUT=120" >> "$GITHUB_ENV"
+      - run: echo "HEADLESS=1" >> "$GITHUB_ENV"
       - run: cargo check --workspace --target wasm32-unknown-unknown
-      # The two spikes' tests and Task 5's rng tests, run on wasm32 in the CI: a
-      # wasm run printing a hash different from the x86_64, aarch64 and windows runs is
-      # the §13.1 verdict. wasm-bindgen-test drives them in a browser, no listener bound.
+      # Common/table are checked as wasm libraries; their tests run on the host.
+      # web's own roundtrip (§12): in a browser, on the origin the runner bound — Task 12's headless
+      # binary, no eframe, no window.
       - run: >-
-          cargo test -p padparadscha-table -p padparadscha-common --target wasm32-unknown-unknown
-          --target-dir target/wasm32-unknown-unknown --tests -- --nocapture
+          cargo test -p padparadscha-classics-web --target wasm32-unknown-unknown
+          --target-dir target/wasm32-unknown-unknown --tests

@@ -58,3 +58,12 @@ tracing = "0.1"
 # Isolated settings directories in tests (spec §4.1).
 tempfile = "3"
 thiserror = "2"
+
+# Browser transport: one shared pin; no server is linked into the wasm client.
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3" # MEASURED: crates.io has no 0.5; web-sys 0.3.107 uses js-sys 0.3.107.
+url = "2"
+# MEASURED web-sys 0.3.107: set_method takes &str (no HttpMethod); headers() needs Headers.
+web-sys = { version = "0.3.107", features = ["Window", "Location", "Request", "RequestInit", "RequestMode", "Response", "WebSocket", "Headers"] }
+padparadscha-table = { path = "crates/padparadscha-table" }
