@@ -27,8 +27,6 @@ pub struct State {
     /// What `session.join` answered `rows` up to (the next seq the client had), so `GET /ws` knows
     /// where to continue (spec §7.3). `None` until a join: then the feed starts at the log's own first.
     pub feed_from: Mutex<Option<Seq>>,
-    /// Wake feed subscribers as soon as a row is appended.
-    pub appended: tokio::sync::Notify,
 }
 
 impl State {
@@ -52,7 +50,6 @@ impl State {
                 table: crate::Table::default(),
             },
             feed_from: Mutex::new(None),
-            appended: tokio::sync::Notify::new(),
             tickets: Mutex::new(Tickets::default()),
             session: Mutex::new(Session::new(id, seed)),
             log: Mutex::new(log),

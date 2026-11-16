@@ -246,6 +246,10 @@ async fn the_feed_closes_when_the_replay_is_drained() {
     for _ in 0..3 {
         let _ = socket.receive_text().await;
     }
+    let close = tokio::time::timeout(Duration::from_secs(5), socket.receive_message())
+        .await
+        .expect("the drained feed should close promptly");
+    assert!(matches!(close, axum_test::WsMessage::Close(_)));
 }
 
 #[tokio::test]

@@ -92,7 +92,6 @@ fn command(state: &Arc<State>, params: Value) -> Value {
         &outcome.outcome.to_string(),
         outcome.attempt,
     ));
-    state.appended.notify_waiters();
     serde_json::json!({ "seq": seq.0 })
 }
 

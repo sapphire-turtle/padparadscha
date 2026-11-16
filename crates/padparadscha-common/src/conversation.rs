@@ -97,7 +97,7 @@ impl Log {
         self.0.push(event);
     }
 
-    /// The rows from `from` (inclusive) on — the feed's continuation (§7.3).
+    /// The internal inclusive window from `from`; the wire cursor is exclusive (§7.3).
     pub fn since(&self, from: Seq) -> Vec<Event> {
         self.0
             .iter()

@@ -79,10 +79,11 @@ async fn the_same_origin_server_carries_the_same_experience_through() {
         let ctx = bevy_egui::egui::Context::default();
         // The isolated test context has not run CommonPlugin; register its actual translations.
         corundum_framework::gui::i18n::register(&ctx, padparadscha_common::TRANSLATIONS);
+        // MEASURED: the wire cursor is exclusive, so pass the snapshot's last seq.
         let rows = o
             .rpc(
                 "session.join",
-                serde_json::json!({ "from_seq": rows.len() }),
+                serde_json::json!({ "from_seq": rows.last().map(|r| r["seq"].as_u64().unwrap()) }),
             )
             .await
             .unwrap()["rows"]
