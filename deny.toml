@@ -25,6 +25,10 @@ ignore = [
     # files with ttf-parser directly and through fontdb; the suggested alternative (skrifa)
     # is a different font stack.
     { id = "RUSTSEC-2026-0192", reason = "ttf-parser is unmaintained (author-declared); the gui stack reads font files with it directly and through fontdb. The suggested alternative (skrifa) is a different font stack." },
+    # Unmaintained (author-declared), no vulnerability, all versions affected -- no safe upgrade to take.
+    # chrono arrives through rmcp (the ACP transport) and axum-test (the tests' server), not from an
+    # entry of ours; a consumer cannot move it.
+    { id = "RUSTSEC-2026-0543", reason = "chrono is unmaintained (author-declared) and every version is affected; it arrives through rmcp and axum-test, two crates this app does not own. Nothing to upgrade to." },
 ]
 
 [licenses]
