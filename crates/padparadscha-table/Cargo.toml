@@ -2,5 +2,45 @@
 name = "padparadscha-table"
 version = "0.1.0"
 edition = "2024"
+license.workspace = true
+repository.workspace = true
+publish = false
 
 [dependencies]
+# Every entry reads only `.workspace = true` (§2.3); the pins live in the root table below.
+bevy.workspace = true
+padparadscha-common.workspace = true      # the engine CONSUMES common's types (Task 5's), never re-declares them
+corundum-framework.workspace = true      # locale + i18n: §5.3's conversion layer renders rows through them
+rapier3d.workspace = true         # rigid bodies on the table, in f64 — the physics types are rapier3d's own Vector3<f64> (§5.2)
+fixed.workspace = true            # the read-out's fixed point alone (§7.1); nothing here touches the simulation side
+rand_core.workspace = true        # the command stream's u64 draws; the named generator stays common's (§7.1)
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# The web backend and WebGL2, as features added to the same root entry — never a second version.
+bevy = { workspace = true, features = ["web", "webgl2"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# The transport stack (Task 10, spec §8/§9): host-only, so wasm reads the crate without it (§13.2).
+axum.workspace = true
+futures-util.workspace = true
+uuid.workspace = true
+# "net" here, not on the workspace entry: tokio refuses "net" on wasm (measured, see root note).
+tokio = { workspace = true, features = ["net"] }
+
+[dev-dependencies]
+serde_json.workspace = true
+# This crate's own spike test runs in a browser too, in the `wasm` job (spec §12).
+wasm-bindgen-test.workspace = true
+# Task 10's api tests: TestServer drives the Router without a listener; tokio-tungstenite is
+# the test-only WebSocket client for the one test that binds a loopback listener.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+reqwest.workspace = true
+axum-test.workspace = true
+tokio-tungstenite.workspace = true
+
+[features]
+default = ["render"]
+render = ["bevy/bevy_render", "bevy/bevy_core_pipeline", "bevy/bevy_picking"]

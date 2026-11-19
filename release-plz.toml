@@ -1,0 +1,55 @@
+# Members share a version group; crates remain unpublished per their manifests.
+[workspace]
+publish = false
+
+[[package]]
+name = "padparadscha-classics-core"
+version_group = "padparadscha"
+
+[[package]]
+name = "padparadscha-classics-desktop"
+version_group = "padparadscha"
+
+[[package]]
+name = "padparadscha-classics-headless"
+version_group = "padparadscha"
+
+[[package]]
+name = "padparadscha-classics-mobile"
+version_group = "padparadscha"
+
+[[package]]
+name = "padparadscha-classics-web"
+version_group = "padparadscha"
+
+[[package]]
+name = "padparadscha-common"
+version_group = "padparadscha"
+
+[[package]]
+name = "padparadscha-table"
+version_group = "padparadscha"
+
+[[package]]
+name = "padparadscha-voxel"
+version_group = "padparadscha"
+
+[[package]]
+name = "padparadscha-sandbox-core"
+version_group = "padparadscha"
+
+[[package]]
+name = "padparadscha-sandbox-desktop"
+version_group = "padparadscha"
+
+[[package]]
+name = "padparadscha-sandbox-headless"
+version_group = "padparadscha"
+
+[[package]]
+name = "padparadscha-sandbox-mobile"
+version_group = "padparadscha"
+
+[[package]]
+name = "padparadscha-sandbox-web"
+version_group = "padparadscha"

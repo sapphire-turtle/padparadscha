@@ -1,14 +1,15 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! The tabletop engine, as one bevy plugin (spec §2.1). What the four clients add on top of their own
+//! window and render plugins.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// The transport (Task 10) is host-only: wasm reads this crate without any of it (spec §13.2).
+#[cfg(not(target_arch = "wasm32"))]
+pub mod api;
+mod physics;
+mod session;
+mod table;
+mod toss;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use physics::{Coin, Keyframe, Launch, simulate};
+pub use session::{Body, Session};
+pub use table::{SpikeCoin, SpikeTable, Table, TablePlugin};
+pub use toss::{CoinOutcome, CoinToss, Outcome};

@@ -2,5 +2,11 @@
 name = "padparadscha-classics-mobile"
 version = "0.1.0"
 edition = "2024"
+license.workspace = true
+repository.workspace = true
+publish = false
 
 [dependencies]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread"] }

@@ -2,5 +2,28 @@
 name = "padparadscha-classics-web"
 version = "0.1.0"
 edition = "2024"
+license.workspace = true
+repository.workspace = true
+publish = false
 
 [dependencies]
+bevy.workspace = true
+bevy_egui.workspace = true
+padparadscha-common.workspace = true
+padparadscha-table.workspace = true
+wasm-bindgen.workspace = true
+wasm-bindgen-futures.workspace = true
+js-sys.workspace = true
+web-sys.workspace = true
+url.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+bevy = { workspace = true, features = ["web", "webgl2"] }
+
+[dev-dependencies]
+corundum-framework.workspace = true
+wasm-bindgen-test.workspace = true

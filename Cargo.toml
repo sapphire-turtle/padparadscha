@@ -1,3 +1,81 @@
 [workspace]
 resolver = "3"
 members = ["classics/crates/padparadscha-classics-core","classics/desktop","classics/headless", "classics/mobile", "classics/web","crates/padparadscha-common","crates/padparadscha-table", "crates/padparadscha-voxel", "sandbox/crates/padparadscha-sandbox-core", "sandbox/desktop", "sandbox/headless", "sandbox/mobile", "sandbox/web"]
+
+[workspace.package]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/sapphire-turtle/padparadscha"
+edition = "2024"
+
+[workspace.dependencies]
+serde = { version = "1.0.154", features = ["derive"] }
+serde_json = "1.0.154"
+rapier3d = { package = "rapier3d-f64", version = "0.36.1", default-features = false, features = ["dim3", "f64", "std"] }
+fixed = "1.31.0"
+rand_xoshiro = "0.8.1"
+rand_core = "0.10.1"
+# The axis of the whole app (spec §2.3). No default features: the app chooses its own window
+# and backends; the two crates ask only for what their own paths need (the shape of
+# sapphire-agent-gui). The render features ride on each crate's own `render` feature.
+bevy = { version = "0.20.1", default-features = false, features = ["bevy_window", "bevy_render", "bevy_core_pipeline", "bevy_picking"] }
+# The framework's look, theme, i18n and icons, and the OS's directories. `default-features =
+# false` and no `eframe`: corundum's gui default would add the window, and an eframe
+# shell is not the architecture (spec §2.1).
+corundum-framework = { git = "https://github.com/sapphire-turtle/corundum-framework", tag = "v0.11.0-wasm", default-features = false, features = ["platform", "gui", "serde"] }
+# egui inside bevy. The fork, on its egui-0.37 branch, until upstream releases egui 0.37
+# support; it re-exports egui 0.37, and two eguis cannot share one app (spec §2.2).
+bevy_egui = { git = "https://github.com/sapphire-turtle/bevy_egui", branch = "egui-0.37" }
+# The Lucide icons turned into textures.
+egui_extras = { version = "0.37", default-features = false, features = ["svg"] }
+# Task 10: the tests' loopback listener needs tokio "net", but tokio 1.54.1 src/lib.rs:479 is a
+# MEASURED compile_error on wasm with net ("Only features sync,macros,io-util,rt,time ..."), and a
+# virtual manifest allows no [target] table — so "net" is added per-member, on the host side only.
+tokio = { version = "1.54.1", default-features = false, features = ["macros", "sync", "time", "rt"] }
+futures-util = { version = "0.3", default-features = false, features = ["std", "sink"] }
+# Task 9 already pinned 0.30.0 (the plan's 0.26 entry is the same connect/handshake API).
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "handshake", "rustls-tls-webpki-roots"] }
+# Drives the two spike files' browser runs, in the `wasm` job (spec §12).
+# Task 10's transport stack, first users here (spec §8/§9).
+# MEASURED (axum 0.8.9 Cargo.toml): no "server" feature exists; `serve` sits behind
+# "tokio"+"http1", and "ws" already pulls "tokio". So the plan's feature list is trimmed to what
+# the gate actually gates, exactly as the plan's own comment intends.
+# "query" too: the /ws ticket arrives as a query parameter (the /rpc extractor was dropped).
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "ws"] }
+# MEASURED: crates.io has no axum-test 0.11 (the plan's pin); the crate was renumbered and
+# 21.1.0 is the newest stable matching axum 0.8 (22.0.0-rc.1 is a prerelease). Same TestServer API.
+# default-features off (pretty-assertions unused); "ws" enables TestWebSocket, which the
+# feed test uses instead of binding a second client by hand.
+axum-test = { version = "21.1", default-features = false, features = ["ws"] }
+uuid = { version = "1.11", features = ["v4"] }
+wasm-bindgen-test = "0.3"
+padparadscha-common = { path = "crates/padparadscha-common" }
+# Backs the connection to the agent at GET /acp: v1 dispatch, schema and Lines transport.
+# v2 stays off to pin ACP v1 (spec §2.3); Task 9 binds the session.
+agent-client-protocol = { version = "5.2.0", features = ["unstable_mcp_over_acp"] }
+toml = "1"
+anyhow = "1"
+tracing = "0.1"
+# Isolated settings directories in tests (spec §4.1).
+tempfile = "3"
+thiserror = "2"
+
+# Browser transport: one shared pin; no server is linked into the wasm client.
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3" # MEASURED: crates.io has no 0.5; web-sys 0.3.107 uses js-sys 0.3.107.
+url = "2"
+# MEASURED web-sys 0.3.107: set_method takes &str (no HttpMethod); headers() needs Headers.
+web-sys = { version = "0.3.107", features = ["Window", "Location", "Request", "RequestInit", "RequestMode", "Response", "WebSocket", "Headers"] }
+padparadscha-table = { path = "crates/padparadscha-table" }
+
+padparadscha-classics-core = { path = "classics/crates/padparadscha-classics-core" }
+getrandom = "0.4.3"
+tracing-subscriber = { version = "0.3", features = ["json"] }
+
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+
+agent-client-protocol-rmcp = { version = "5.2.0", default-features = false, features = ["rmcp_3", "unstable_mcp_over_acp"] }
+# MEASURED: raised from the scheme's 1.6-era pin to 3.10.0 -- the latest 3.x -- because cargo deny
+# fails the advisories the old client carries (RUSTSEC-2026-0457 OAuth SSRF host-string check fixed by 3.7.0,
+# RUSTSEC-2026-0461 unbounded tool schema cache fixed by 3.6.0, and the unbounded response-body buffering).
+rmcp = { version = "3.10.0", default-features = false }

@@ -2,5 +2,51 @@
 name = "padparadscha-common"
 version = "0.1.0"
 edition = "2024"
+license.workspace = true
+repository.workspace = true
+publish = false
 
 [dependencies]
+# The axis of the whole app (spec §2.3), the framework's look, egui inside bevy, the icons, and
+# the event-loop waker — every version and every default above, in the root table, not here.
+bevy.workspace = true
+corundum-framework.workspace = true
+bevy_egui.workspace = true
+egui_extras.workspace = true
+tokio.workspace = true
+
+# Settings and the clear handshake refusal (spec §4.1, §10); the ACP session binds in Task 9.
+serde.workspace = true
+serde_json.workspace = true
+fixed.workspace = true
+rand_xoshiro.workspace = true
+rand_core.workspace = true
+agent-client-protocol.workspace = true
+agent-client-protocol-rmcp.workspace = true
+rmcp.workspace = true
+toml.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+futures-util.workspace = true
+tokio-tungstenite.workspace = true
+reqwest.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+
+[features]
+# Default on; the headless client (Task 12) reads this crate default-features = false and still
+# links without a window (the plugin itself, not the window, is what the crate asks for).
+default = ["render"]
+render = ["bevy/bevy_render", "bevy/bevy_core_pipeline", "bevy/bevy_picking"]
+
+[dev-dependencies]
+wasm-bindgen-test.workspace = true
+tempfile.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+axum.workspace = true
+tokio = { workspace = true, features = ["net", "process", "io-util"] }
+tokio-tungstenite.workspace = true
+futures-util.workspace = true
