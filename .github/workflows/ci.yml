@@ -12,6 +12,14 @@ jobs:
       linux-packages: >-
         pkg-config libudev-dev libwayland-dev libxkbcommon-dev libx11-dev
         libxi-dev libxcursor-dev libxrandr-dev
+      # MEASURED (the arm leg, every run so far): it has never completed a run, so rust-cache has
+      # nothing to restore (every run logs "No cache found"), the whole workspace compiles cold on
+      # the hosted arm runner, and that cold dev build (debug-info line tables over rapier3d-f64,
+      # nalgebra and bevy, --all-targets --all-features) grows past what the runner holds until it
+      # is reaped mid-compile: shutdown signal, exit 143, post steps skipped, so nothing is ever saved
+      # for the next run. dev-profile debug is the panic backtrace, never a number: what the matrix
+      # answers (each target builds, and its run prints the same four hashes) is untouched. CI only.
+      pre-build: echo 'CARGO_PROFILE_DEV_DEBUG=0' >> "$GITHUB_ENV"
   wasm:
     name: wasm32 build and wasm-bindgen-test (Linux only, spec §12)
     runs-on: ubuntu-24.04
